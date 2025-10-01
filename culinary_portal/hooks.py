@@ -145,6 +145,13 @@ app_license = "mit"
 # 	}
 # }
 
+doc_events = {
+	"Item": {
+		# "after_insert": "culinary_portal.custom_hooks.create_item.handle_item_saved",
+		"on_update": "culinary_portal.custom_hooks.create_item.handle_item_saved",
+	}
+}
+
 # Scheduled Tasks
 # ---------------
 
