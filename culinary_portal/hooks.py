@@ -48,6 +48,10 @@ app_license = "mit"
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
+doctype_js = {
+	"Item": "public/js/item.js"
+}
+
 # Svg Icons
 # ------------------
 # include app icons in desk
@@ -153,6 +157,16 @@ doc_events = {
  	"Item Price": {
 		# "after_insert": "culinary_portal.custom_hooks.create_item.handle_item_saved",
 		"on_update": "culinary_portal.custom_hooks.create_item.handle_item_saved",
+	},
+   	"Item Group": {
+		"on_update": "culinary_portal.custom_hooks.create_category.handle_item_group_after_insert",
+		"after_rename": "culinary_portal.custom_hooks.create_category.handle_item_group_after_insert",
+		"on_trash": "culinary_portal.custom_hooks.create_category.handle_item_group_on_trash",
+	},
+	"Supplier": {
+		"on_update": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_sync",
+		"after_rename": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_sync",
+		"on_trash": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_on_trash",
 	}
 }
 
