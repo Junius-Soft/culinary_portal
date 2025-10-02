@@ -8,6 +8,11 @@ app_license = "mit"
 # Apps
 # ------------------
 
+fixtures = [
+    {"dt": "Custom Field", "filters": [["module", "=", "culinary_portal"]]},
+    # {"dt": "Item Group"},
+]
+
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
