@@ -192,6 +192,9 @@ def collect_customer_b2bking_groups_for_item(item_code: str) -> dict:
 
 
 def handle_item_saved(doc, method=None):
+    print("\n\n\n DEBUG:0 handle_item_saved", doc)
+    if doc.doctype=="Item Price":
+        print("\n\n\n DEBUG:0 handle_item_saved Item Price", doc.as_dict())
     # Aynı istek içinde tekrar çalışmayı engelle
     if getattr(doc.flags, "culinary_wc_sync_ran", False):
         return
@@ -230,6 +233,7 @@ def handle_item_saved(doc, method=None):
 
     # WooCommerce formatına dönüştür
     wc_payload = map_item_to_woocommerce(
+        doc,
         payload,
         base_url,
         category_id,
@@ -238,18 +242,13 @@ def handle_item_saved(doc, method=None):
         regular_price_override=str(standard_price) if standard_price is not None else None,
     )
 
-    # for key, value in payload.items():
-        # print(f"{key}: {value}")
-
-    # print("\n=== WooCommerce Mapped Payload ===")
-    # print(json.dumps(wc_payload, indent=2, ensure_ascii=False))
-
-    # WooCommerce'e gönder
-    send_to_woocommerce(wc_payload, consumer_key, consumer_secret)
+    # WooCommerce'e gönder ve item_code'u da geç
+    send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"))
 
 
-def map_item_to_woocommerce(item_data, base_url, category_id: int | None, meta_data: list[dict], status_value: str = "publish", regular_price_override: str | None = None):
+def map_item_to_woocommerce(doc,item_data, base_url, category_id: int | None, meta_data: list[dict], status_value: str = "publish", regular_price_override: str | None = None):
     """ERPNext Item verisini WooCommerce formatına dönüştürür"""
+    print("\n\n\n DEBUG:1 DOC NAME", doc)
     image_path = item_data.get("image", "") or ""
     images = []
     if image_path:
@@ -271,26 +270,32 @@ def map_item_to_woocommerce(item_data, base_url, category_id: int | None, meta_d
         if regular_price_override is not None
         else str(item_data.get("standard_rate", "0.0"))
     )
+    
+    if doc.doctype=="Item":
+        wc_data = {
+            "name": item_data.get("item_name", ""),
+            "slug": item_data.get("item_code", ""),
+            "type": "simple",
+            "sku": item_data.get("item_code", ""),       
+            "description": item_data.get("description", ""),
+            "manage_stock": True,
+            "stock_quantity": 100,
+            "stock_status": "instock",
+            "status": status_value,
+            "categories": categories,
+            "images": images,
+            "meta_data": meta_data or [],
+            }
+        return wc_data
+    else:
+        wc_data = {
+            "meta_data": meta_data or [],
+            }
+        return wc_data
 
-    wc_data = {
-        "name": item_data.get("item_name", ""),
-        "slug": item_data.get("item_code", ""),
-        "type": "simple",
-        "sku": item_data.get("item_code", ""),       
-        "description": item_data.get("description", ""),
-        "manage_stock": True,
-        "stock_quantity": 100,
-        "stock_status": "instock",
-        "status": status_value,
-        "categories": categories,
-        "images": images,
-        "meta_data": meta_data or [],
-    }
-    return wc_data
 
-
-def send_to_woocommerce(payload, consumer_key, consumer_secret):
-    """WooCommerce API'sine veri gönderir"""
+def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code):
+    """WooCommerce API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
     try:
         url = "https://staging.erpsfer.com/culinary/wp-json/wc/v3/products"
 
@@ -324,17 +329,30 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret):
             )
 
         if response.status_code in (200, 201):
-            # print(f"✅ WooCommerce'e başarıyla gönderildi: {response.json()}")
+            response_data = response.json()
+            wc_product_id = response_data.get("id")
+            
+            if wc_product_id:
+                # Item doctype'ındaki custom_woocommerce_id alanını güncelle
+                try:
+                    frappe.db.set_value("Item", item_code, "custom_woocommerce_id", wc_product_id)
+                    frappe.db.commit()
+                    print(f"✅ WooCommerce ID ({wc_product_id}) Item'a kaydedildi")
+                except Exception as e:
+                    frappe.log_error(
+                        title="Item WooCommerce ID Update Error",
+                        message=f"Item: {item_code}, WC ID: {wc_product_id}, Error: {str(e)}"
+                    )
+            
             frappe.msgprint("Item WooCommerce'e başarıyla senkronize edildi")
+            print("\n\n\n DEBUG:2 wc_product_id", payload)
         else:
-            # print(f"❌ WooCommerce API Hatası: {response.status_code} - {response.text}")
             frappe.log_error(
                 title="WooCommerce API Error",
                 message=f"Status: {response.status_code}\nResponse: {response.text}",
             )
 
     except Exception as e:
-        # print(f"❌ WooCommerce gönderim hatası: {str(e)}")
         frappe.log_error(
             title="WooCommerce Send Error",
             message=frappe.get_traceback(),
