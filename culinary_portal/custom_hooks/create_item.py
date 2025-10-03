@@ -211,8 +211,14 @@ def handle_item_saved(doc, method=None):
     url = "https://staging.erpsfer.com/culinary/wp-json/wc/v3/products"
     print("\n\n\n DEBUG:0 base_url", base_url)
 
-    # Kategori id'yi al
-    # Önce Item Group üzerindeki custom_woocommerce_category_id alanını kullan
+    # Item'ın WooCommerce ID'sini kontrol et
+    existing_wc_id = None
+    try:
+        existing_wc_id = frappe.db.get_value("Item", {"name": payload.get("item_code")}, "custom_woocommerce_id")
+    except Exception:
+        existing_wc_id = None
+
+    # Item Group'tan kategori ID'sini al
     category_id = None
     try:
         item_group_name = payload.get("item_group")
@@ -220,13 +226,10 @@ def handle_item_saved(doc, method=None):
             category_id = frappe.db.get_value(
                 "Item Group", {"name": item_group_name}, "custom_woocommerce_category_id"
             )
-            if isinstance(category_id, str) and category_id.isdigit():
-                category_id = int(category_id)
-    except Exception:
+            print(f"DEBUG: Item Group '{item_group_name}' -> category_id: {category_id}")
+    except Exception as e:
+        print(f"DEBUG: Error getting category_id from Item Group: {e}")
         category_id = None
-    # Eğer bulunamazsa, isimden WooCommerce API ile aramaya düş
-    if not category_id:
-        category_id = get_wc_category_id(payload.get("item_group", ""))
 
     # Ürüne bağlı birleşik meta_data (tek obje) al
     aggregated = collect_customer_b2bking_groups_for_item(payload.get("item_code"))
@@ -235,8 +238,16 @@ def handle_item_saved(doc, method=None):
     # Standard Selling fiyat kontrolü
     standard_price = _get_standard_selling_price(payload.get("item_code"))
     print("\n\n\n DEBUG:1 standard_price", standard_price)
-    status_value = "publish"
-    # 0.0 veya None ise draft yap ve uyarı ver
+    
+    # Status belirleme: disabled durumuna göre
+    if payload.get("disabled", 0) == 1:
+        status_value = "draft"
+        print("DEBUG: Item disabled, status = draft")
+    else:
+        status_value = "publish"
+        print("DEBUG: Item enabled, status = publish")
+    
+    # Fiyat kontrolü - eğer fiyat yoksa draft yap
     try:
         std_price_num = float(standard_price) if standard_price is not None else 0.0
     except Exception:
@@ -256,8 +267,8 @@ def handle_item_saved(doc, method=None):
         regular_price_override=str(standard_price) if standard_price is not None else None,
     )
 
-    # WooCommerce'e gönder ve item_code'u da geç
-    send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"))
+    # WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
+    send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
 
 
 def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, meta_data: list[dict], status_value: str = "publish", regular_price_override: str | None = None):
@@ -274,10 +285,17 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
             }
         ]
 
+    # Categories başlangıcı - Item Group categories'ini ekle
     categories = []
-    if category_id:
-        categories = [{"id": category_id}]
+    
+    # 1. Item Group kategori ID'sini ekle (ana kategori olarak)
+    if category_id and str(category_id).isdigit():
+        categories.append({"id": int(category_id)})
+        print(f"DEBUG: Added Item Group category ID: {category_id}")
+    
+    # 2. Ana kategori (303) - her zaman eklenir
     categories.append({"id": 303})
+    print(f"DEBUG: Categories after Item Group: {categories}")
 
     # regular_price tercihi: override > item.standard_rate
     regular_price_value = (
@@ -287,7 +305,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
     )
     
     if doc.doctype == "Item":
-        # Supplier items'i meta_data'ya ekle
+        # Supplier categories'ini de ekle
         supplier_items = []
         if hasattr(doc, 'supplier_items') and doc.supplier_items:
             # Supplier ID'lerini önce topla
@@ -296,33 +314,26 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
             # Supplier bilgilerini tek sorguda çek
             supplier_data = {}
             if supplier_names:
-                suppliers = frappe.db.get_list(
+                supplier_categories = frappe.db.get_list(
                     "Supplier",
                     filters={"name": ["in", supplier_names]},
-                    fields=["name", "custom_woocommerce_slug"],
+                    fields=["name", "custom_woocommerce_category_id"],
                     limit_page_length=0
                 )
-                supplier_data = {s.name: s.custom_woocommerce_slug for s in suppliers}
-                print("\n\n\n DEBUG:1 supplier_data", suppliers)
+                supplier_data = {s.name: s.custom_woocommerce_category_id for s in supplier_categories if s.custom_woocommerce_category_id}
+                print(f"\n\n\n DEBUG:1 supplier_data", supplier_data)
             
-            # Supplier items'i oluştur
-            for supplier_item in doc.supplier_items:
-                print("\n\n\n DEBUG:1 supplier_item in FOR", supplier_item.supplier)
-                if supplier_item.supplier:
-                    supplier_items.append({
-                        "supplier_name": supplier_item.supplier,
-                        "supplier_wc_slug": supplier_data.get(supplier_item.supplier, ""),
-                        "id":get_wc_category_id(supplier_item.supplier)
-                    })
+            # Supplier categories'ini categories'e ekle
+            for supplier_name, supplier_cat_id in supplier_data.items():
+                if supplier_cat_id and str(supplier_cat_id).isdigit():
+                    supplier_cat_int = int(supplier_cat_id)
+                    # Aynı kategori zaten ekli mi kontrol et
+                    existing_ids = [c.get("id") for c in categories]
+                    if supplier_cat_int not in existing_ids:
+                        categories.append({"id": supplier_cat_int, "parent": 303})
+                        print(f"DEBUG: Added Supplier category ID: {supplier_cat_int} for supplier: {supplier_name}")
         
-        print("\n\n\n DEBUG:1 supplier_items", supplier_items)
-        
-        # Supplier'dan gelen kategori id'yi categories'e ekle
-        if supplier_items:
-            supplier_cat_id = supplier_items[0].get("id")
-            if supplier_cat_id:
-                categories.append({"id": supplier_cat_id,"parent":303})
-                print("\n\n\n DEBUG:1 categories", categories)
+        print(f"\n\n\n DEBUG:1 Final categories", categories)
         
         wc_data = {
             "name": item_data.get("item_name", ""),
@@ -346,17 +357,10 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
         return wc_data
 
 
-def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code):
+def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, existing_wc_id=None):
     """WooCommerce API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
     try:
         url = "https://staging.erpsfer.com/culinary/wp-json/wc/v3/products"
-
-        # Mevcut WooCommerce ID'yi Item üzerindeki custom_woocommerce_id alanından kontrol et
-        existing_wc_id = None
-        try:
-            existing_wc_id = frappe.db.get_value("Item", {"name": item_code}, "custom_woocommerce_id")
-        except Exception:
-            existing_wc_id = None
 
         # ID varsa güncelle, yoksa yeni oluştur
         if existing_wc_id:
@@ -366,6 +370,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code):
                 json=payload,
                 headers={"Content-Type": "application/json"},
             )
+            print(f"🔄 WooCommerce ürün güncellendi - ID: {existing_wc_id}")
         else:
             response = requests.post(
                 url,
@@ -373,18 +378,17 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code):
                 json=payload,
                 headers={"Content-Type": "application/json"},
             )
+            print("➕ Yeni WooCommerce ürün oluşturuluyor")
 
         if response.status_code in (200, 201):
             response_data = response.json()
             wc_product_id = response_data.get("id")
             
-            # Eğer yeni oluşturulduysa veya Item'da ID yoksa, geri yaz
+            # Eğer yeni oluşturulduysa, Item'a WooCommerce ID'yi kaydet
             if wc_product_id and not existing_wc_id:
-                # Item doctype'ındaki custom_woocommerce_id alanını güncelle
                 try:
                     frappe.db.set_value("Item", item_code, "custom_woocommerce_id", wc_product_id)
                     frappe.db.commit()
-                    doc.reload()
                     print(f"✅ WooCommerce ID ({wc_product_id}) Item'a kaydedildi")
                 except Exception as e:
                     frappe.log_error(
