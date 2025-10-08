@@ -27,7 +27,7 @@ def get_wc_category_id(category_name: str) -> int | None:
     if not category_name:
         return None
     try:
-        url = "https://staging.erpsfer.com/culinary/wp-json/wc/v3/products/categories"
+        url = "https://www.temayolu.com//wp-json/wc/v3/products/categories"
         resp = requests.get(
             url,
             auth=(get_consumer_key(), get_consumer_secret()),
@@ -48,7 +48,7 @@ def _fetch_wc_customer_meta_by_email(email: str, consumer_key: str, consumer_sec
     """Verilen e‑posta için WooCommerce customers API'den kullanıcının id ve meta_data'sını döndürür."""
     if not email:
         return {}
-    url = "https://staging.erpsfer.com/culinary/wp-json/wc/v3/customers"
+    url = "https://www.temayolu.com//wp-json/wc/v3/customers"
     try:
         resp = requests.get(
             url,
@@ -208,7 +208,7 @@ def handle_item_saved(doc, method=None):
     base_url = get_base_url()
     consumer_key = get_consumer_key()
     consumer_secret = get_consumer_secret()
-    url = "https://staging.erpsfer.com/culinary/wp-json/wc/v3/products"
+    url = "https://www.temayolu.com//wp-json/wc/v3/products"
     print("\n\n\n DEBUG:0 base_url", base_url)
 
     # Item'ın WooCommerce ID'sini kontrol et
@@ -360,7 +360,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
 def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, existing_wc_id=None):
     """WooCommerce API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
     try:
-        url = "https://staging.erpsfer.com/culinary/wp-json/wc/v3/products"
+        url = "https://www.temayolu.com//wp-json/wc/v3/products"
 
         # ID varsa güncelle, yoksa yeni oluştur
         if existing_wc_id:

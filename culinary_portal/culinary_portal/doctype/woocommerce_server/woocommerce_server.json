@@ -64,22 +64,6 @@
   "enable_order_fees_sync",
   "account_for_order_fee_lines",
   "tax_account_for_order_fee_lines",
-  "tab_items",
-  "item_section",
-  "name_by",
-  "enable_image_sync",
-  "item_stock_section",
-  "enable_stock_level_synchronisation",
-  "warehouses",
-  "subtract_reserved_stock",
-  "item_fields_section",
-  "item_fields_warning_html",
-  "item_field_map",
-  "tab_price_list",
-  "section_break_hnji",
-  "enable_price_list_sync",
-  "price_list",
-  "price_list_delay_per_item",
   "tab_plugins",
   "advanced_shipment_tracking_section",
   "wc_plugin_advanced_shipment_tracking",
@@ -447,110 +431,6 @@
   },
   {
    "depends_on": "eval: doc.enable_sync",
-   "fieldname": "tab_items",
-   "fieldtype": "Tab Break",
-   "label": "Items"
-  },
-  {
-   "fieldname": "item_section",
-   "fieldtype": "Section Break"
-  },
-  {
-   "default": "WooCommerce ID",
-   "description": "How the item code should be determined when an item is created",
-   "fieldname": "name_by",
-   "fieldtype": "Select",
-   "label": "Default Item Code Naming Basis",
-   "mandatory_depends_on": "eval: doc.enable_stock_level_synchronisation",
-   "options": "WooCommerce ID\nProduct SKU"
-  },
-  {
-   "default": "0",
-   "description": "Set the WooCommerce Product's first image's URL as the Image for the ERPNext Item",
-   "fieldname": "enable_image_sync",
-   "fieldtype": "Check",
-   "label": "Enable Image Sync"
-  },
-  {
-   "fieldname": "item_stock_section",
-   "fieldtype": "Section Break",
-   "label": "Item Stock Levels"
-  },
-  {
-   "default": "0",
-   "documentation_url": "https://woocommerce-fusion-docs.finfoot.tech/features/item-stock-levels.html",
-   "fieldname": "enable_stock_level_synchronisation",
-   "fieldtype": "Check",
-   "label": "Enable Stock Level Synchronisation"
-  },
-  {
-   "depends_on": "eval: doc.enable_stock_level_synchronisation",
-   "description": "Select the Warehouses that should be taken into account when synchronising Item Stock Levels",
-   "fieldname": "warehouses",
-   "fieldtype": "Table MultiSelect",
-   "label": "Warehouses",
-   "options": "WooCommerce Server Warehouse"
-  },
-  {
-   "default": "0",
-   "depends_on": "eval: doc.enable_stock_level_synchronisation",
-   "description": "Adjusts stock levels sent to WooCommerce by subtracting reserved stock, ensuring only available stock is synced",
-   "fieldname": "subtract_reserved_stock",
-   "fieldtype": "Check",
-   "label": "Reserved Stock Adjustment"
-  },
-  {
-   "fieldname": "item_fields_section",
-   "fieldtype": "Section Break",
-   "label": "Item Fields"
-  },
-  {
-   "fieldname": "item_fields_warning_html",
-   "fieldtype": "HTML",
-   "options": "<div class=\"alert alert-warning\">\nMapping item fields is recommended for advanced users only. Make sure to monitor Error Logs after adding field mappings.\n</div>"
-  },
-  {
-   "documentation_url": "https://woocommerce-fusion-docs.finfoot.tech/features/items.html#custom-fields-mapping",
-   "fieldname": "item_field_map",
-   "fieldtype": "Table",
-   "label": "Fields Mapping",
-   "options": "WooCommerce Server Item Field"
-  },
-  {
-   "depends_on": "eval: doc.enable_sync",
-   "fieldname": "tab_price_list",
-   "fieldtype": "Tab Break",
-   "label": "Price List"
-  },
-  {
-   "fieldname": "section_break_hnji",
-   "fieldtype": "Section Break"
-  },
-  {
-   "default": "0",
-   "documentation_url": "https://woocommerce-fusion-docs.finfoot.tech/features/item-prices.html",
-   "fieldname": "enable_price_list_sync",
-   "fieldtype": "Check",
-   "label": "Enable Price List Sync"
-  },
-  {
-   "depends_on": "eval: doc.enable_price_list_sync",
-   "fieldname": "price_list",
-   "fieldtype": "Link",
-   "label": "Price List",
-   "mandatory_depends_on": "eval: doc.enable_price_list_sync",
-   "options": "Price List"
-  },
-  {
-   "default": "2",
-   "depends_on": "eval: doc.enable_price_list_sync",
-   "description": "In seconds. Increase if WC server can't handle the load.",
-   "fieldname": "price_list_delay_per_item",
-   "fieldtype": "Int",
-   "label": "Delay per POST Request"
-  },
-  {
-   "depends_on": "eval: doc.enable_sync",
    "fieldname": "tab_plugins",
    "fieldtype": "Tab Break",
    "label": "WooCommerce Plugins"
@@ -589,7 +469,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-03 11:39:54.734294",
+ "modified": "2025-10-03 12:03:15.113963",
  "modified_by": "Administrator",
  "module": "Culinary Portal",
  "name": "WooCommerce Server",

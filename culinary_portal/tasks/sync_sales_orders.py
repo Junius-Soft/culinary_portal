@@ -43,6 +43,7 @@ def run_sales_order_sync(
 	"""
 	Helper funtion that prepares arguments for order sync
 	"""
+	print("\n\n\n DEBUG-1 run_sales_order_sync çalıştı")
 	# Validate inputs, at least one of the parameters should be provided
 	if not any([sales_order_name, sales_order, woocommerce_order_name, woocommerce_order]):
 		raise ValueError(
@@ -626,7 +627,7 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 				woocommerce_product_name = generate_woocommerce_record_name_from_domain_and_id(
 					woocommerce_site, item_woo_com_id
 				)
-				run_item_sync(woocommerce_product_name=woocommerce_product_name)
+				# run_item_sync(woocommerce_product_name=woocommerce_product_name)
 
 	def set_items_in_sales_order(self, new_sales_order, wc_order):
 		"""
