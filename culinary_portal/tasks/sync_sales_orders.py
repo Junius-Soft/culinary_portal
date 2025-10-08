@@ -647,20 +647,31 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 			else:
 				iws = frappe.qb.DocType("Item WooCommerce Server")
 				itm = frappe.qb.DocType("Item")
+				# item_codes = (
+				# 	frappe.qb.from_(iws)
+				# 	.join(itm)
+				# 	.on(iws.parent == itm.name)
+				# 	.where(
+				# 		(iws.woocommerce_id == cstr(woocomm_item_id))
+				# 		& (iws.woocommerce_server == new_sales_order.woocommerce_server)
+				# 		& (itm.disabled == 0)
+				# 	)
+				# 	.select(iws.parent)
+				# 	.limit(1)
+				# ).run(as_dict=True)
 				item_codes = (
-					frappe.qb.from_(iws)
-					.join(itm)
-					.on(iws.parent == itm.name)
+					frappe.qb.from_("Item")
 					.where(
-						(iws.woocommerce_id == cstr(woocomm_item_id))
-						& (iws.woocommerce_server == new_sales_order.woocommerce_server)
-						& (itm.disabled == 0)
+						(frappe.qb.Field("custom_woocommerce_id") == str(woocomm_item_id))
+						& (frappe.qb.Field("disabled") == 0)
 					)
-					.select(iws.parent)
+					.select("name")
 					.limit(1)
 				).run(as_dict=True)
 
-				found_item = frappe.get_doc("Item", item_codes[0].parent) if item_codes else None
+
+				# found_item = frappe.get_doc("Item", item_codes[0].parent) if item_codes else None
+				found_item = frappe.get_doc("Item", item_codes[0]["name"])
 
 			# If we are applying a Sales Taxes and Charges Template (as opposed to Actual Tax), then we need to
 			# determine if the item price should include tax or not
