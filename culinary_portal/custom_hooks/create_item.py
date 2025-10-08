@@ -10,6 +10,13 @@ def get_base_url():
         site_conf.get("base_url")
         or get_url()
     )
+    
+def get_wo_url():
+    site_conf = getattr(frappe.local, "conf", {}) or {}
+    return (
+        site_conf.get("woocommerce_url")
+        or get_url()
+    )
 
 
 def get_consumer_key():
@@ -20,14 +27,14 @@ def get_consumer_key():
 def get_consumer_secret():
     site_conf = getattr(frappe.local, "conf", {}) or {}
     return site_conf.get("consumer_secret") or ""
-
+# Debug prints removed for security
 
 def get_wc_category_id(category_name: str) -> int | None:
     """WooCommerce'de kategori adını arayıp id'sini döndürür; yoksa None."""
     if not category_name:
         return None
     try:
-        url = "https://www.temayolu.com//wp-json/wc/v3/products/categories"
+        url = f"{get_wo_url()}/wp-json/wc/v3/products/categories"
         resp = requests.get(
             url,
             auth=(get_consumer_key(), get_consumer_secret()),
@@ -48,7 +55,7 @@ def _fetch_wc_customer_meta_by_email(email: str, consumer_key: str, consumer_sec
     """Verilen e‑posta için WooCommerce customers API'den kullanıcının id ve meta_data'sını döndürür."""
     if not email:
         return {}
-    url = "https://www.temayolu.com//wp-json/wc/v3/customers"
+    url = f"{get_wo_url()}/wp-json/wc/v3/customers"
     try:
         resp = requests.get(
             url,
@@ -57,6 +64,7 @@ def _fetch_wc_customer_meta_by_email(email: str, consumer_key: str, consumer_sec
             headers={"Content-Type": "application/json"},
         )
         data = resp.json()
+        print("\n\n\n\ DEBUGG---111---",resp)
         if isinstance(data, list) and data:
             customer = data[0]
         elif isinstance(data, dict):
@@ -208,7 +216,7 @@ def handle_item_saved(doc, method=None):
     base_url = get_base_url()
     consumer_key = get_consumer_key()
     consumer_secret = get_consumer_secret()
-    url = "https://www.temayolu.com//wp-json/wc/v3/products"
+    url = f"{get_wo_url()}/wp-json/wc/v3/products"
     print("\n\n\n DEBUG:0 base_url", base_url)
 
     # Item'ın WooCommerce ID'sini kontrol et
@@ -360,7 +368,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
 def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, existing_wc_id=None):
     """WooCommerce API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
     try:
-        url = "https://www.temayolu.com//wp-json/wc/v3/products"
+        url = f"{get_wo_url()}/wp-json/wc/v3/products"
 
         # ID varsa güncelle, yoksa yeni oluştur
         if existing_wc_id:
@@ -378,7 +386,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                 json=payload,
                 headers={"Content-Type": "application/json"},
             )
-            print("➕ Yeni WooCommerce ürün oluşturuluyor")
+            print("➕ Yeni WooCommerce ürün oluşturuluyor",response)
 
         if response.status_code in (200, 201):
             response_data = response.json()

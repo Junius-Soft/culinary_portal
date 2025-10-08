@@ -6,6 +6,7 @@ from culinary_portal.custom_hooks.create_item import (
     get_base_url,
     get_consumer_key,
     get_consumer_secret,
+    get_wo_url
 )
 
 
@@ -20,7 +21,7 @@ def _build_image_src(image_path: Optional[str]) -> str:
 def _post_wc_category(name: str,  slug: Optional[str] = None, parent_id: Optional[int] = None) -> Optional[int]:
     """WooCommerce kategori oluşturur ve id döner; hata halinde None."""
     try:
-        url = "https://www.temayolu.com//wp-json/wc/v3/products/categories"
+        url = f{get_wo_url()}"/wp-json/wc/v3/products/categories" 
         payload: dict = {
             "name": name or "",
             
@@ -54,7 +55,7 @@ def _post_wc_category(name: str,  slug: Optional[str] = None, parent_id: Optiona
 def _update_wc_category(category_id: int, name: str, image_src: str, slug: Optional[str] = None, parent_id: Optional[int] = None) -> bool:
     """Mevcut WooCommerce kategoriyi günceller; başarılı olursa True döner."""
     try:
-        url = f"https://www.temayolu.com//wp-json/wc/v3/products/categories/{category_id}"
+        url = f{get_wo_url()}"/wp-json/wc/v3/products/categories/{category_id}" 
         payload: dict = {
             "name": name or "",
             "image": {"src": image_src or ""},
@@ -87,7 +88,7 @@ def _update_wc_category(category_id: int, name: str, image_src: str, slug: Optio
 def _delete_wc_category(category_id: int, force_delete: bool = True) -> bool:
     """WooCommerce kategorisini siler; başarılı olursa True döner."""
     try:
-        url = f"https://www.temayolu.com//wp-json/wc/v3/products/categories/{category_id}"
+        url = f{get_wo_url()}"/wp-json/wc/v3/products/categories/{category_id}" 
         params = {"force": force_delete} if force_delete else {}
         resp = requests.delete(
             url,
