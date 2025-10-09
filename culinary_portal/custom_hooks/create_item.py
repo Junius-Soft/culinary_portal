@@ -10,7 +10,8 @@ def get_base_url():
         site_conf.get("base_url")
         or get_url()
     )
-    
+
+
 def get_wo_url():
     site_conf = getattr(frappe.local, "conf", {}) or {}
     return (
@@ -19,14 +20,17 @@ def get_wo_url():
     )
 
 
+# def get_consumer_key():
+#     site_conf = getattr(frappe.local, "conf", {}) or {}
+#     return site_conf.get("consumer_key") or ""
 def get_consumer_key():
-    site_conf = getattr(frappe.local, "conf", {}) or {}
-    return site_conf.get("consumer_key") or ""
+    woocommerce_server = frappe.get_value("WooCommerce Server", frappe.local.site, "api_consumer_key")
+    return woocommerce_server or ""
 
 
 def get_consumer_secret():
-    site_conf = getattr(frappe.local, "conf", {}) or {}
-    return site_conf.get("consumer_secret") or ""
+    woocommerce_server = frappe.get_value("WooCommerce Server", frappe.local.site, "api_consumer_secret")
+    return woocommerce_server or ""
 # Debug prints removed for security
 
 def get_wc_category_id(category_name: str) -> int | None:
