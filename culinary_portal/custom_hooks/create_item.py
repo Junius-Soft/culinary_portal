@@ -24,12 +24,14 @@ def get_wo_url():
 #     site_conf = getattr(frappe.local, "conf", {}) or {}
 #     return site_conf.get("consumer_key") or ""
 def get_consumer_key():
-    woocommerce_server = frappe.get_value("WooCommerce Server", frappe.local.site, "api_consumer_key")
+   
+    woocommerce_server = frappe.get_value("WooCommerce Server", "www.temayolu.com", "api_consumer_key")
+
     return woocommerce_server or ""
 
 
 def get_consumer_secret():
-    woocommerce_server = frappe.get_value("WooCommerce Server", frappe.local.site, "api_consumer_secret")
+    woocommerce_server = frappe.get_value("WooCommerce Server", "www.temayolu.com", "api_consumer_secret")
     return woocommerce_server or ""
 # Debug prints removed for security
 
@@ -458,5 +460,155 @@ def collect_customer_b2bking_groups() -> dict:
                 merged.append(m)
 
     return {"meta_data": merged}
+
+
+@frappe.whitelist()
+def sync_all_items_to_woocommerce():
+    """Tüm Item'ları WooCommerce'e senkronize eder"""
+    try:
+        # Tüm aktif item'ları al (isteğe bağlı: disabled olanları dahil etmek için filtreyi kaldırabilirsiniz)
+        items = frappe.db.get_list(
+            "Item",
+            filters={},  # Filtre: istersen {"disabled": 0} ekleyebilirsin
+            fields=["name"],
+            limit_page_length=0,
+        )
+        
+        if not items:
+            return {
+                "status": "warning",
+                "message": "Senkronize edilecek ürün bulunamadı"
+            }
+        
+        success_count = 0
+        error_count = 0
+        error_items = []
+        
+        base_url = get_base_url()
+        consumer_key = get_consumer_key()
+        consumer_secret = get_consumer_secret()
+        print("\n\n\n DEBUG:0 consumer_key", consumer_key)
+        print("\n\n\n DEBUG:0 consumer_secret", consumer_secret)
+        print("\n\n\n DEBUG:0 base_url", base_url)
+        
+        for item_dict in items:
+            try:
+                # Item'ı yükle
+                item_doc = frappe.get_doc("Item", item_dict.name)
+                
+                # Sync bayrağını ayarla (tekrar çalışmasını engelle)
+                item_doc.flags.culinary_wc_sync_ran = True
+                
+                payload = item_doc.as_dict()
+                
+                # WooCommerce ID'yi kontrol et
+                existing_wc_id = frappe.db.get_value("Item", {"name": payload.get("item_code")}, "custom_woocommerce_id")
+                
+                # Category ID'yi al
+                category_id = None
+                item_group_name = payload.get("item_group")
+                if item_group_name:
+                    category_id = frappe.db.get_value(
+                        "Item Group", {"name": item_group_name}, "custom_woocommerce_category_id"
+                    )
+                
+                # Meta data'yı topla
+                aggregated = collect_customer_b2bking_groups_for_item(payload.get("item_code"))
+                dynamic_meta = aggregated.get("meta_data", []) if isinstance(aggregated, dict) else []
+                
+                # Standard Selling fiyatı kontrol et
+                standard_price = _get_standard_selling_price(payload.get("item_code"))
+                
+                # Status belirleme
+                if payload.get("disabled", 0) == 1:
+                    status_value = "draft"
+                else:
+                    status_value = "publish"
+                
+                # Fiyat kontrolü
+                try:
+                    std_price_num = float(standard_price) if standard_price is not None else 0.0
+                except Exception:
+                    std_price_num = 0.0
+                
+                if standard_price is None or std_price_num == 0.0:
+                    status_value = "draft"
+                
+                # WooCommerce payload'u oluştur
+                wc_payload = map_item_to_woocommerce(
+                    item_doc,
+                    payload,
+                    base_url,
+                    category_id,
+                    dynamic_meta,
+                    status_value=status_value,
+                    regular_price_override=str(standard_price) if standard_price is not None else None,
+                )
+                
+                # WooCommerce'e gönder
+                url = f"{get_wo_url()}/wp-json/wc/v3/products"
+                
+                if existing_wc_id:
+                    response = requests.put(
+                        f"{url}/{existing_wc_id}",
+                        auth=(consumer_key, consumer_secret),
+                        json=wc_payload,
+                        headers={"Content-Type": "application/json"},
+                    )
+                else:
+                    response = requests.post(
+                        url,
+                        auth=(consumer_key, consumer_secret),
+                        json=wc_payload,
+                        headers={"Content-Type": "application/json"},
+                    )
+                
+                if response.status_code in (200, 201):
+                    response_data = response.json()
+                    wc_product_id = response_data.get("id")
+                    
+                    # Yeni oluşturulduysa ID'yi kaydet
+                    if wc_product_id and not existing_wc_id:
+                        frappe.db.set_value("Item", item_dict.name, "custom_woocommerce_id", wc_product_id)
+                    
+                    success_count += 1
+                else:
+                    error_count += 1
+                    error_items.append(f"{item_dict.name} (HTTP {response.status_code})")
+                    
+            except Exception as e:
+                error_count += 1
+                error_items.append(f"{item_dict.name} ({str(e)})")
+                frappe.log_error(
+                    title=f"Item Sync Error - {item_dict.name}",
+                    message=frappe.get_traceback()
+                )
+        
+        # Değişiklikleri kaydet
+        frappe.db.commit()
+        
+        # Sonuç mesajı
+        message = f"✅ Başarılı: {success_count} ürün<br>❌ Hatalı: {error_count} ürün"
+        if error_items and len(error_items) <= 10:
+            message += f"<br><br>Hatalı ürünler:<br>{'<br>'.join(error_items)}"
+        elif error_items:
+            message += f"<br><br>İlk 10 hatalı ürün:<br>{'<br>'.join(error_items[:10])}"
+        
+        return {
+            "status": "success" if error_count == 0 else "partial",
+            "message": message,
+            "success_count": success_count,
+            "error_count": error_count
+        }
+        
+    except Exception as e:
+        frappe.log_error(
+            title="Bulk Item Sync Error",
+            message=frappe.get_traceback()
+        )
+        return {
+            "status": "error",
+            "message": f"Toplu senkronizasyon hatası: {str(e)}"
+        }
 
 
