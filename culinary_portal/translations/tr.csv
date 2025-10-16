@@ -1,0 +1,34 @@
+Sync Dokan Vendor,Dokan Vendor Eşleştir
+WooCommerce,WooCommerce
+Sync Dokan Store for {0}?,{0} için Dokan Store eşleştirmesi yapılsın mı?
+Checking Dokan Stores...,Dokan Store'lar kontrol ediliyor...
+Store Not Found,Store Bulunamadı
+Searched name,Aranan isim
+Total stores,Toplam store sayısı
+Note: Store name must match exactly with Supplier Name.,Not: Store adının Supplier Name ile tam olarak eşleşmesi gerekiyor.
+Error,Hata
+API Error,API Hatası
+Could not connect to Dokan API.,Dokan API ile bağlantı kurulamadı.
+Bulk Sync Dokan Vendors,Toplu Dokan Vendor Eşleştir
+Please select at least one Supplier,Lütfen en az bir Supplier seçin
+Sync Dokan Vendors for {0} Suppliers?,{0} Supplier için Dokan Vendor eşleştirmesi yapılsın mı?
+Selected Suppliers,Seçili Supplier'lar
+Syncing Dokan Stores...,Dokan Store eşleştirmesi yapılıyor...
+Bulk Sync Completed,Toplu Eşleştirme Tamamlandı
+Sync Results,Eşleştirme Sonuçları
+OK,Tamam
+Supplier name not found,Supplier adı bulunamadı
+Could not fetch Dokan Stores,Dokan Store'lar alınamadı
+Dokan Vendor found and matched,Dokan Vendor bulundu ve eşleştirildi
+No Dokan Store found with name '{0}','{0}' adında Dokan Store bulunamadı
+Error: {0},Hata: {0}
+Valid supplier list not found,Geçerli supplier listesi bulunamadı
+✅ Matched: {0}<br>⚠️ Not Found: {1}<br>❌ Error: {2},✅ Eşleşti: {0}<br>⚠️ Bulunamadı: {1}<br>❌ Hata: {2}
+Not Found,Bulunamadı
+First 10 not found,İlk 10 bulunamayan
+Bulk sync error: {0},Toplu eşleştirme hatası: {0}
+Product has no price,Ürünün fiyatı yok
+Product price not defined. Product will be added as Draft,Ürün fiyatı tanımlanmadı. Ürün Draft olarak eklenecektir
+Item successfully synchronized to WooCommerce,Item WooCommerce'e başarıyla senkronize edildi
+Product successfully deleted from WooCommerce,Ürün WooCommerce'den başarıyla silindi
+

@@ -10,6 +10,7 @@ app_license = "mit"
 
 fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Culinary Portal"]]},
+    # {"dt": "Client Script", "filters": [["module", "=", "Culinary Portal"]]},
     # {"dt": "Item Group"},
 ]
 
@@ -54,7 +55,12 @@ fixtures = [
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
 doctype_js = {
-	"Item": "public/js/item.js"
+	"Item": "public/js/item.js",
+	"Supplier": "public/js/supplier.js"
+}
+
+doctype_list_js = {
+	"Supplier": "public/js/supplier_list.js"
 }
 
 # Svg Icons
@@ -158,6 +164,7 @@ doc_events = {
 	"Item": {
 		# "after_insert": "culinary_portal.custom_hooks.create_item.handle_item_saved",
 		"on_update": "culinary_portal.custom_hooks.create_item.handle_item_saved",
+		"on_trash": "culinary_portal.custom_hooks.delete_item.handle_item_deleted",
 	},
  	"Item Price": {
 		# "after_insert": "culinary_portal.custom_hooks.create_item.handle_item_saved",
