@@ -20,19 +20,23 @@ def get_wo_url():
     )
 
 
-# def get_consumer_key():
-#     site_conf = getattr(frappe.local, "conf", {}) or {}
-#     return site_conf.get("consumer_key") or ""
 def get_consumer_key():
-   
-    woocommerce_server = frappe.get_value("WooCommerce Server", "www.temayolu.com", "api_consumer_key")
-
-    return woocommerce_server or ""
-
+    site_conf = getattr(frappe.local, "conf", {}) or {}
+    return site_conf.get("consumer_key") or ""
 
 def get_consumer_secret():
-    woocommerce_server = frappe.get_value("WooCommerce Server", "www.temayolu.com", "api_consumer_secret")
-    return woocommerce_server or ""
+    site_conf = getattr(frappe.local, "conf", {}) or {}
+    return site_conf.get("consumer_secret") or ""
+
+# def get_consumer_key():
+#     woocommerce_server = frappe.get_value("WooCommerce Server", "www.temayolu.com", "api_consumer_key")
+
+#     return woocommerce_server or ""
+
+
+# def get_consumer_secret():
+#     woocommerce_server = frappe.get_value("WooCommerce Server", "www.temayolu.com", "api_consumer_secret")
+#     return woocommerce_server or ""
 # Debug prints removed for security
 
 def get_wc_category_id(category_name: str) -> int | None:
@@ -200,7 +204,7 @@ def collect_customer_b2bking_groups_for_item(item_code: str) -> dict:
 
     # Hiç fiyat bulunamadıysa uyarı göster
     if not has_any_price:
-        frappe.msgprint("Ürünün fiyatı yok", alert=True)
+        frappe.msgprint(frappe._("Product has no price"), alert=True)
 
     return {"meta_data": merged}
 
@@ -267,7 +271,7 @@ def handle_item_saved(doc, method=None):
     except Exception:
         std_price_num = 0.0
     if standard_price is None or std_price_num == 0.0:
-        frappe.msgprint("Ürün fiyatı tanımlanmadı Ürün Draft olark eklenecktir", alert=True)
+        frappe.msgprint(frappe._("Product price not defined. Product will be added as Draft"), alert=True)
         status_value = "draft"
 
     # WooCommerce formatına dönüştür
@@ -410,7 +414,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                         message=f"Item: {item_code}, WC ID: {wc_product_id}, Error: {str(e)}"
                     )
             
-            frappe.msgprint("Item WooCommerce'e başarıyla senkronize edildi")
+            frappe.msgprint(frappe._("Item successfully synchronized to WooCommerce"))
             print("\n\n\n DEBUG:2 wc_product_id", payload)
         else:
             frappe.log_error(
