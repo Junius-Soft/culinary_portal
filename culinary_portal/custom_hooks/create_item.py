@@ -335,7 +335,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
                 supplier_categories = frappe.db.get_list(
                     "Supplier",
                     filters={"name": ["in", supplier_names]},
-                    fields=["name", "custom_woocommerce_category_id"],
+                    fields=["name", "custom_woocommerce_category_id","custom_woocommerce_vendor_id"],
                     limit_page_length=0
                 )
                 supplier_data = {s.name: s.custom_woocommerce_category_id for s in supplier_categories if s.custom_woocommerce_category_id}
@@ -362,13 +362,14 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
             "short_description":item_data.get("custom_short_description",""),
             "manage_stock": False,
             "stock_status": "instock",
-            "stock_quantity": None,
             "status": status_value,
+            "store":{"id":supplier_data.get("custom_woocommerce_vendor_id")},
             "categories": categories,
             "images": images,
             "meta_data": meta_data or [],
         }
         return wc_data
+    print("\n\n\n DEBUG:1111 wc_data", wc_data)
     else:
         wc_data = {
             "meta_data": meta_data or [],
