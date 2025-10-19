@@ -21,7 +21,7 @@ def _build_image_src(image_path: Optional[str]) -> str:
 def _post_wc_category(name: str, image_src: str) -> Optional[int]:
     """WooCommerce kategori oluşturur ve id döner; hata halinde None."""
     try:
-        url = `get_wo_url()"/wp-json/wc/v3/products/categories"`
+        url = "https://staging.erpsfer.com/culinary/wp-json/wc/v3/products/categories"
         payload = {
             "name": name or "",
             "image": {"src": image_src or ""},
