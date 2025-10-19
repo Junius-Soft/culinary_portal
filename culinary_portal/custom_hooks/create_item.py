@@ -369,6 +369,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
             "status": status_value,
             "categories": categories,
             "images": images,
+            "author":supplier_vendor_id,
             "meta_data": meta_data or [],
         }
         
