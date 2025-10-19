@@ -286,7 +286,7 @@ def handle_item_saved(doc, method=None):
     )
 
     # WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
-    send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id, doc)
+    send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
 
 
 def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, meta_data: list[dict], status_value: str = "publish", regular_price_override: str | None = None):
@@ -375,57 +375,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
         return wc_data
 
 
-def update_dokan_vendor(wc_product_id, doc, consumer_key, consumer_secret):
-    """Dokan API'sine ürünün vendor bilgisini günceller"""
-    try:
-        # Supplier'dan vendor ID'yi al
-        vendor_id = None
-        if hasattr(doc, 'supplier_items') and doc.supplier_items:
-            # İlk supplier'ın vendor ID'sini al
-            first_supplier = doc.supplier_items[0].supplier if doc.supplier_items[0].supplier else None
-            if first_supplier:
-                vendor_id = frappe.db.get_value(
-                    "Supplier",
-                    {"name": first_supplier},
-                    "custom_woocommerce_vendor_id"
-                )
-                print(f"DEBUG: İlk supplier '{first_supplier}' için vendor ID: {vendor_id}")
-        
-        if not vendor_id:
-            print("DEBUG: Vendor ID bulunamadı, Dokan güncellenmeyecek")
-            return
-        
-        # Dokan API'sine istek at
-        dokan_url = f"{get_wo_url()}/wp-json/dokan/v1/products/{wc_product_id}"
-        dokan_payload = {
-            "author": str(vendor_id)
-        }
-        
-        dokan_response = requests.put(
-            dokan_url,
-            auth=(consumer_key, consumer_secret),
-            json=dokan_payload,
-            headers={"Content-Type": "application/json"},
-        )
-        
-        if dokan_response.status_code in (200, 201):
-            print(f"✅ Dokan vendor bilgisi güncellendi - Product ID: {wc_product_id}, Vendor ID: {vendor_id}")
-        else:
-            frappe.log_error(
-                title="Dokan API Error",
-                message=f"Product ID: {wc_product_id}\nVendor ID: {vendor_id}\nStatus: {dokan_response.status_code}\nResponse: {dokan_response.text}",
-            )
-            print(f"❌ Dokan güncelleme hatası - Status: {dokan_response.status_code}")
-    
-    except Exception as e:
-        frappe.log_error(
-            title="Dokan Vendor Update Error",
-            message=f"Product ID: {wc_product_id}\nError: {str(e)}\n{frappe.get_traceback()}",
-        )
-        print(f"❌ Dokan güncelleme hatası: {str(e)}")
-
-
-def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, existing_wc_id=None, doc=None):
+def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, existing_wc_id=None):
     """WooCommerce API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
     try:
         url = f"{get_wo_url()}/wp-json/wc/v3/products"
@@ -463,10 +413,6 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                         title="Item WooCommerce ID Update Error",
                         message=f"Item: {item_code}, WC ID: {wc_product_id}, Error: {str(e)}"
                     )
-            
-            # Dokan API'sine vendor bilgisini gönder
-            if wc_product_id and doc and doc.doctype == "Item":
-                update_dokan_vendor(wc_product_id, doc, consumer_key, consumer_secret)
             
             frappe.msgprint(frappe._("Item successfully synchronized to WooCommerce"))
             print("\n\n\n DEBUG:2 wc_product_id", payload)
@@ -628,10 +574,6 @@ def sync_all_items_to_woocommerce():
                     # Yeni oluşturulduysa ID'yi kaydet
                     if wc_product_id and not existing_wc_id:
                         frappe.db.set_value("Item", item_dict.name, "custom_woocommerce_id", wc_product_id)
-                    
-                    # Dokan API'sine vendor bilgisini gönder
-                    if wc_product_id:
-                        update_dokan_vendor(wc_product_id, item_doc, consumer_key, consumer_secret)
                     
                     success_count += 1
                 else:
