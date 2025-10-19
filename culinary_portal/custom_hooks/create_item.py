@@ -331,6 +331,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
             
             # Supplier bilgilerini tek sorguda çek
             supplier_data = {}
+            supplier_vendor_id = None
             if supplier_names:
                 supplier_categories = frappe.db.get_list(
                     "Supplier",
@@ -339,6 +340,9 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
                     limit_page_length=0
                 )
                 supplier_data = {s.name: s.custom_woocommerce_category_id for s in supplier_categories if s.custom_woocommerce_category_id}
+                # İlk supplier'ın vendor_id'sini al
+                if supplier_categories:
+                    supplier_vendor_id = supplier_categories[0].get("custom_woocommerce_vendor_id")
                 print(f"\n\n\n DEBUG:1 supplier_data", supplier_data)
             
             # Supplier categories'ini categories'e ekle
@@ -363,13 +367,16 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
             "manage_stock": False,
             "stock_status": "instock",
             "status": status_value,
-            "store":{"id":supplier_data.get("custom_woocommerce_vendor_id")},
             "categories": categories,
             "images": images,
             "meta_data": meta_data or [],
         }
+        
+        # Supplier vendor_id varsa store ekle
+        if supplier_vendor_id:
+            wc_data["store"] = {"id": supplier_vendor_id}
+        
         return wc_data
-    print("\n\n\n DEBUG:1111 wc_data", wc_data)
     else:
         wc_data = {
             "meta_data": meta_data or [],
