@@ -342,7 +342,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
             "sku": item_data.get("item_code", ""),       
             "description": item_data.get("description", ""),
             "short_description":item_data.get("custom_short_description",""),
-            "manage_stock": false,
+            "manage_stock": False,
             "stock_quantity": 0,
             "stock_status": "instock",
             "status": status_value,
