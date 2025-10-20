@@ -394,14 +394,13 @@ def send_to_dokan(dokan_url, wc_product_id, doc, consumer_key, consumer_secret, 
             print("DEBUG: Vendor ID bulunamadı, Dokan'a gönderilmeyecek")
             return
         
-        # Dokan payload'u hazırla - Sadece post_author gönder
+        print(f"DEBUG: Vendor bilgisi güncellenecek - Product ID: {wc_product_id}, Vendor ID: {vendor_id}")
+        
+        # Yöntem 1: Dokan API ile dene
         dokan_payload = {
             "post_author": str(vendor_id)
         }
         
-        print(f"DEBUG: Dokan'a gönderilecek payload - Product ID: {wc_product_id}, Vendor ID: {vendor_id}")
-        
-        # Dokan API'sine PUT isteği at (mevcut ürünü güncelle)
         dokan_response = requests.put(
             f"{dokan_url}/{wc_product_id}",
             auth=(consumer_key, consumer_secret),
@@ -410,13 +409,33 @@ def send_to_dokan(dokan_url, wc_product_id, doc, consumer_key, consumer_secret, 
         )
         
         if dokan_response.status_code in (200, 201):
-            print(f"✅ Dokan API'sine vendor bilgisi güncellendi - Product ID: {wc_product_id}, Vendor ID: {vendor_id}")
+            print(f"✅ Dokan API ile vendor bilgisi güncellendi - Product ID: {wc_product_id}, Vendor ID: {vendor_id}")
+            return
+        
+        # Yöntem 2: Dokan başarısız olursa WordPress REST API ile dene
+        print(f"⚠️ Dokan API başarısız (Status: {dokan_response.status_code}), WordPress REST API deneniyor...")
+        
+        wp_posts_url = f"{get_wo_url()}/wp-json/wp/v2/product/{wc_product_id}"
+        wp_payload = {
+            "author": int(vendor_id)
+        }
+        
+        wp_response = requests.post(
+            wp_posts_url,
+            auth=(consumer_key, consumer_secret),
+            json=wp_payload,
+            headers={"Content-Type": "application/json"},
+        )
+        
+        if wp_response.status_code in (200, 201):
+            print(f"✅ WordPress REST API ile vendor bilgisi güncellendi - Product ID: {wc_product_id}, Vendor ID: {vendor_id}")
         else:
+            # Her iki yöntem de başarısız
             frappe.log_error(
-                title="Dokan API Error",
-                message=f"Product ID: {wc_product_id}\nVendor ID: {vendor_id}\nStatus: {dokan_response.status_code}\nResponse: {dokan_response.text}",
+                title="Vendor Update Failed",
+                message=f"Product ID: {wc_product_id}\nVendor ID: {vendor_id}\n\nDokan Status: {dokan_response.status_code}\nDokan Response: {dokan_response.text}\n\nWP REST Status: {wp_response.status_code}\nWP REST Response: {wp_response.text}",
             )
-            print(f"❌ Dokan API hatası - Status: {dokan_response.status_code}\nResponse: {dokan_response.text}")
+            print(f"❌ Her iki yöntem de başarısız - Dokan: {dokan_response.status_code}, WP REST: {wp_response.status_code}")
     
     except Exception as e:
         frappe.log_error(
