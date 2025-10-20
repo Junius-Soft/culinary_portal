@@ -376,7 +376,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
 
 
 def send_to_dokan(dokan_url, wc_product_id, doc, consumer_key, consumer_secret, wc_payload):
-    """Dokan API'sine ürün gönderir ve post_author alanını vendor ID ile atar"""
+    """Dokan API'sine ürünün post_author bilgisini günceller"""
     try:
         # Supplier'dan vendor ID'yi al
         vendor_id = None
@@ -394,22 +394,23 @@ def send_to_dokan(dokan_url, wc_product_id, doc, consumer_key, consumer_secret, 
             print("DEBUG: Vendor ID bulunamadı, Dokan'a gönderilmeyecek")
             return
         
-        # Dokan payload'u hazırla - WooCommerce payload'una post_author ekle
-        dokan_payload = wc_payload.copy()
-        dokan_payload["post_author"] = str(vendor_id)
+        # Dokan payload'u hazırla - Sadece post_author gönder
+        dokan_payload = {
+            "post_author": str(vendor_id)
+        }
         
         print(f"DEBUG: Dokan'a gönderilecek payload - Product ID: {wc_product_id}, Vendor ID: {vendor_id}")
         
-        # Dokan API'sine POST isteği at
-        dokan_response = requests.post(
-            dokan_url,
+        # Dokan API'sine PUT isteği at (mevcut ürünü güncelle)
+        dokan_response = requests.put(
+            f"{dokan_url}/{wc_product_id}",
             auth=(consumer_key, consumer_secret),
             json=dokan_payload,
             headers={"Content-Type": "application/json"},
         )
         
         if dokan_response.status_code in (200, 201):
-            print(f"✅ Dokan API'sine ürün gönderildi - Product ID: {wc_product_id}, Vendor ID: {vendor_id}")
+            print(f"✅ Dokan API'sine vendor bilgisi güncellendi - Product ID: {wc_product_id}, Vendor ID: {vendor_id}")
         else:
             frappe.log_error(
                 title="Dokan API Error",
