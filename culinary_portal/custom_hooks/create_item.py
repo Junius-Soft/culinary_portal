@@ -148,6 +148,55 @@ def _get_standard_selling_price(item_code: str) -> str | None:
     return str(rate) if rate is not None else None
 
 
+def collect_customer_b2bking_group_for_price_list(item_code: str, price_list_name: str) -> dict:
+    """Belirli bir Price List için o ürüne ait B2B group fiyatını döndürür.
+    Sadece değiştirilen fiyat listesi için güncelleme yapar - performans optimizasyonu.
+    """
+    consumer_key = get_consumer_key()
+    consumer_secret = get_consumer_secret()
+
+    # İlgili Customer'ı bul (Price List adı = Customer adı)
+    customer = frappe.db.get_value(
+        "Customer",
+        {"name": price_list_name, "woocommerce_identifier": ["!=", ""]},
+        ["name", "woocommerce_identifier"],
+        as_dict=True
+    )
+    
+    if not customer:
+        return {"meta_data": []}
+
+    email = customer.get("woocommerce_identifier")
+    customer_price = _get_price_from_price_list(price_list_name, item_code)
+    standard_price = _get_standard_selling_price(item_code)
+
+    # Fiyat belirleme mantığı
+    if customer_price:
+        sale_price = customer_price
+    elif standard_price:
+        sale_price = standard_price
+    else:
+        return {"meta_data": []}
+
+    # Regular price için standard fiyat kullan (yoksa sale price'ı kullan)
+    regular_price = standard_price if standard_price else sale_price
+
+    # WooCommerce'den customer meta data al
+    wc_customer = _fetch_wc_customer_meta_by_email(email, consumer_key, consumer_secret)
+    group_val = _extract_b2bking_customergroup(wc_customer.get("meta_data", [])) if wc_customer else None
+    
+    if not group_val:
+        return {"meta_data": []}
+
+    # Sadece bu grup için meta data oluştur
+    meta_data = [
+        {"key": f"b2bking_regular_product_price_group_{group_val}", "value": regular_price},
+        {"key": f"b2bking_sale_product_price_group_{group_val}", "value": sale_price},
+    ]
+
+    return {"meta_data": meta_data}
+
+
 def collect_customer_b2bking_groups_for_item(item_code: str) -> dict:
     """Tüm müşteriler için, müşteri adıyla aynı Price List'ten bu ürüne ait fiyatı bulur;
     Woo'dan alınan b2bking group id ile birleştirip tek {"meta_data": [...]} döndürür.
@@ -213,6 +262,7 @@ def handle_item_saved(doc, method=None):
     print("\n\n\n DEBUG:0 handle_item_saved", doc)
     if doc.doctype=="Item Price":
         print("\n\n\n DEBUG:0 handle_item_saved Item Price", doc.as_dict())
+    
     # Aynı istek içinde tekrar çalışmayı engelle
     if getattr(doc.flags, "culinary_wc_sync_ran", False):
         return
@@ -223,9 +273,37 @@ def handle_item_saved(doc, method=None):
         return
 
     payload = doc.as_dict()
-    base_url = get_base_url()
     consumer_key = get_consumer_key()
     consumer_secret = get_consumer_secret()
+
+    # Item Price değişikliği ise - sadece ilgili B2B group'u güncelle
+    if doc.doctype == "Item Price":
+        item_code = payload.get("item_code")
+        price_list_name = payload.get("price_list")
+        
+        # Item'ın WooCommerce ID'si yoksa işlem yapma
+        existing_wc_id = frappe.db.get_value("Item", {"name": item_code}, "custom_woocommerce_id")
+        if not existing_wc_id:
+            print(f"DEBUG: Item {item_code} has no WooCommerce ID, skipping Item Price sync")
+            return
+        
+        # Sadece ilgili fiyat listesi için B2B group meta data al
+        aggregated = collect_customer_b2bking_group_for_price_list(item_code, price_list_name)
+        dynamic_meta = aggregated.get("meta_data", []) if isinstance(aggregated, dict) else []
+        
+        if not dynamic_meta:
+            print(f"DEBUG: No B2B group found for price list: {price_list_name}")
+            return
+        
+        # Sadece meta_data güncellemesi için payload
+        wc_payload = {"meta_data": dynamic_meta}
+        
+        # WooCommerce'e gönder
+        send_to_woocommerce(wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
+        return
+
+    # Item değişikliği ise - normal akış
+    base_url = get_base_url()
     url = f"{get_wo_url()}/wp-json/wc/v3/products"
     print("\n\n\n DEBUG:0 base_url", base_url)
 
@@ -249,7 +327,7 @@ def handle_item_saved(doc, method=None):
         print(f"DEBUG: Error getting category_id from Item Group: {e}")
         category_id = None
 
-    # Ürüne bağlı birleşik meta_data (tek obje) al
+    # Ürüne bağlı birleşik meta_data (tek obje) al - tüm B2B grupları
     aggregated = collect_customer_b2bking_groups_for_item(payload.get("item_code"))
     dynamic_meta = aggregated.get("meta_data", []) if isinstance(aggregated, dict) else []
 
