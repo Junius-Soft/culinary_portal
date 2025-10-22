@@ -638,6 +638,17 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 		if not wc_server.warehouse:
 			frappe.throw(_("Please set Warehouse in WooCommerce Server"))
 
+		# Initialize tax tracking variables
+		total_items_tax = 0
+		tax_template = None
+		
+		# If we are applying a Sales Taxes and Charges Template (as opposed to Actual Tax), then we need to
+		# determine if the item price should include tax or not
+		if wc_server.enable_tax_lines_sync and not wc_server.use_actual_tax_type:
+			tax_template = frappe.get_cached_doc(
+				"Sales Taxes and Charges Template", wc_server.sales_taxes_and_charges_template
+			)
+
 		for item in json.loads(wc_order.line_items):
 			woocomm_item_id = item.get("variation_id") or item.get("product_id")
 
@@ -673,13 +684,6 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 				# found_item = frappe.get_doc("Item", item_codes[0].parent) if item_codes else None
 				found_item = frappe.get_doc("Item", item_codes[0]["name"])
 
-			# If we are applying a Sales Taxes and Charges Template (as opposed to Actual Tax), then we need to
-			# determine if the item price should include tax or not
-			if wc_server.enable_tax_lines_sync and not wc_server.use_actual_tax_type:
-				tax_template = frappe.get_cached_doc(
-					"Sales Taxes and Charges Template", wc_server.sales_taxes_and_charges_template
-				)
-
 			new_sales_order_line = {
 				"item_code": found_item.name,
 				"item_name": found_item.item_name,
@@ -701,20 +705,31 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 				new_sales_order_line,
 			)
 
-			if wc_server.enable_tax_lines_sync:
-				if not wc_server.use_actual_tax_type:
-					new_sales_order.taxes_and_charges = wc_server.sales_taxes_and_charges_template
+			# Accumulate tax amount for all items
+			if wc_server.enable_tax_lines_sync and wc_server.use_actual_tax_type:
+				ordered_items_tax = item.get("total_tax", 0)
+				total_items_tax += float(ordered_items_tax) if ordered_items_tax else 0
 
-					# Trigger taxes calculation
-					new_sales_order.set_missing_lead_customer_details()
-				else:
-					ordered_items_tax = item.get("total_tax")
-					add_tax_details(new_sales_order, ordered_items_tax, "Ordered Item tax", wc_server.tax_account)
+		# Add taxes after processing all items
+		if wc_server.enable_tax_lines_sync:
+			if not wc_server.use_actual_tax_type:
+				new_sales_order.taxes_and_charges = wc_server.sales_taxes_and_charges_template
+
+				# Trigger taxes calculation
+				new_sales_order.set_missing_lead_customer_details()
+			else:
+				# Add single tax line for all items combined
+				if total_items_tax > 0:
+					# Get tax rate from account
+					tax_rate = frappe.get_cached_value("Account", wc_server.tax_account, "tax_rate") or 0
+					add_tax_details(new_sales_order, total_items_tax, "Ordered Items Tax", wc_server.tax_account, tax_rate)
 
 		# If a Shipping Rule is added, shipping charges will be determined by the Shipping Rule. If not, then
 		# get it from the WooCommerce Order
 		if not new_sales_order.shipping_rule:
-			add_tax_details(new_sales_order, wc_order.shipping_tax, "Shipping Tax", wc_server.tax_account)
+			# Get tax rate for shipping tax
+			shipping_tax_rate = frappe.get_cached_value("Account", wc_server.tax_account, "tax_rate") or 0
+			add_tax_details(new_sales_order, wc_order.shipping_tax, "Shipping Tax", wc_server.tax_account, shipping_tax_rate)
 			add_tax_details(
 				new_sales_order,
 				wc_order.shipping_total,
@@ -758,12 +773,15 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 						frappe.throw(_("Please set 'Tax Account for Order Fee Lines' in WooCommerce Server"))
 
 					for fee_line_tax in fee_line["taxes"]:
+						# Get tax rate for fee line tax
+						fee_tax_rate = frappe.get_cached_value("Account", wc_server.tax_account_for_order_fee_lines, "tax_rate") or 0
 						new_sales_order.append(
 							"taxes",
 							{
 								"charge_type": "Actual",
 								"account_head": wc_server.tax_account_for_order_fee_lines,
 								"tax_amount": fee_line_tax["total"],
+								"tax_rate": fee_tax_rate,
 								"description": fee_line["name"] + " " + _("Tax"),
 							},
 						)
@@ -1012,13 +1030,14 @@ def create_contact(data, customer):
 	return contact
 
 
-def add_tax_details(sales_order, price, desc, tax_account_head):
+def add_tax_details(sales_order, price, desc, tax_account_head, tax_rate=0):
 	sales_order.append(
 		"taxes",
 		{
 			"charge_type": "Actual",
 			"account_head": tax_account_head,
 			"tax_amount": price,
+			"tax_rate": tax_rate,
 			"description": desc,
 		},
 	)
