@@ -259,7 +259,6 @@ def collect_customer_b2bking_groups_for_item(item_code: str) -> dict:
 
 
 def handle_item_saved(doc, method=None):
-    """Item veya Item Price kaydedildiğinde çağrılır ve senkronizasyonu background job olarak başlatır"""
     print("\n\n\n DEBUG:0 handle_item_saved", doc)
     if doc.doctype=="Item Price":
         print("\n\n\n DEBUG:0 handle_item_saved Item Price", doc.as_dict())
@@ -273,48 +272,20 @@ def handle_item_saved(doc, method=None):
     if getattr(doc.flags, "created_by_sync", None):
         return
 
-    # Item Price değişikliği ise - background job olarak çalıştır
+    payload = doc.as_dict()
+    consumer_key = get_consumer_key()
+    consumer_secret = get_consumer_secret()
+
+    # Item Price değişikliği ise - sadece ilgili B2B group'u güncelle
     if doc.doctype == "Item Price":
-        item_code = doc.get("item_code")
-        price_list_name = doc.get("price_list")
+        item_code = payload.get("item_code")
+        price_list_name = payload.get("price_list")
         
         # Item'ın WooCommerce ID'si yoksa işlem yapma
         existing_wc_id = frappe.db.get_value("Item", {"name": item_code}, "custom_woocommerce_id")
         if not existing_wc_id:
             print(f"DEBUG: Item {item_code} has no WooCommerce ID, skipping Item Price sync")
             return
-        
-        # Background job olarak çalıştır
-        frappe.enqueue(
-            "culinary_portal.custom_hooks.create_item.sync_item_price_to_woocommerce",
-            queue="default",
-            timeout=300,
-            item_code=item_code,
-            price_list_name=price_list_name,
-            existing_wc_id=existing_wc_id
-        )
-        frappe.msgprint(frappe._("Price update queued for Portal sync"), alert=True)
-        return
-
-    # Item değişikliği ise - background job olarak çalıştır
-    if doc.doctype == "Item":
-        item_code = doc.get("item_code") or doc.get("name")
-        
-        # Background job olarak çalıştır
-        frappe.enqueue(
-            "culinary_portal.custom_hooks.create_item.sync_item_to_woocommerce",
-            queue="default",
-            timeout=300,
-            item_code=item_code
-        )
-        frappe.msgprint(frappe._("Item queued for Portal sync"), alert=True)
-
-
-def sync_item_price_to_woocommerce(item_code, price_list_name, existing_wc_id):
-    """Item Price değişikliğini WooCommerce'e senkronize eder (Background Job)"""
-    try:
-        consumer_key = get_consumer_key()
-        consumer_secret = get_consumer_secret()
         
         # Sadece ilgili fiyat listesi için B2B group meta data al
         aggregated = collect_customer_b2bking_group_for_price_list(item_code, price_list_name)
@@ -329,93 +300,72 @@ def sync_item_price_to_woocommerce(item_code, price_list_name, existing_wc_id):
         
         # WooCommerce'e gönder
         send_to_woocommerce(wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
-        print(f"✅ Item Price sync completed for {item_code}")
-        
-    except Exception as e:
-        frappe.log_error(
-            title=f"Background Item Price Sync Error - {item_code}",
-            message=frappe.get_traceback()
-        )
+        return
 
+    # Item değişikliği ise - normal akış
+    base_url = get_base_url()
+    url = f"{get_wo_url()}/wp-json/wc/v3/products"
+    print("\n\n\n DEBUG:0 base_url", base_url)
 
-def sync_item_to_woocommerce(item_code):
-    """Item değişikliğini WooCommerce'e senkronize eder (Background Job)"""
+    # Item'ın WooCommerce ID'sini kontrol et
+    existing_wc_id = None
     try:
-        # Item'ı yükle
-        item_doc = frappe.get_doc("Item", item_code)
-        payload = item_doc.as_dict()
-        
-        consumer_key = get_consumer_key()
-        consumer_secret = get_consumer_secret()
-        base_url = get_base_url()
-        
-        print("\n\n\n DEBUG:0 base_url", base_url)
-
-        # Item'ın WooCommerce ID'sini kontrol et
+        existing_wc_id = frappe.db.get_value("Item", {"name": payload.get("item_code")}, "custom_woocommerce_id")
+    except Exception:
         existing_wc_id = None
-        try:
-            existing_wc_id = frappe.db.get_value("Item", {"name": item_code}, "custom_woocommerce_id")
-        except Exception:
-            existing_wc_id = None
 
-        # Item Group'tan kategori ID'sini al
-        category_id = None
-        try:
-            item_group_name = payload.get("item_group")
-            if item_group_name:
-                category_id = frappe.db.get_value(
-                    "Item Group", {"name": item_group_name}, "custom_woocommerce_category_id"
-                )
-                print(f"DEBUG: Item Group '{item_group_name}' -> category_id: {category_id}")
-        except Exception as e:
-            print(f"DEBUG: Error getting category_id from Item Group: {e}")
-            category_id = None
-
-        # Ürüne bağlı birleşik meta_data (tek obje) al - tüm B2B grupları
-        aggregated = collect_customer_b2bking_groups_for_item(item_code)
-        dynamic_meta = aggregated.get("meta_data", []) if isinstance(aggregated, dict) else []
-
-        # Standard Selling fiyat kontrolü
-        standard_price = _get_standard_selling_price(item_code)
-        print("\n\n\n DEBUG:1 standard_price", standard_price)
-        
-        # Status belirleme: disabled durumuna göre
-        if payload.get("disabled", 0) == 1:
-            status_value = "draft"
-            print("DEBUG: Item disabled, status = draft")
-        else:
-            status_value = "publish"
-            print("DEBUG: Item enabled, status = publish")
-        
-        # Fiyat kontrolü - eğer fiyat yoksa draft yap
-        try:
-            std_price_num = float(standard_price) if standard_price is not None else 0.0
-        except Exception:
-            std_price_num = 0.0
-        if standard_price is None or std_price_num == 0.0:
-            status_value = "draft"
-            print("DEBUG: No price defined, setting status to draft")
-
-        # WooCommerce formatına dönüştür
-        wc_payload = map_item_to_woocommerce(
-            item_doc,
-            payload,
-            base_url,
-            category_id,
-            dynamic_meta,
-            status_value=status_value,
-            regular_price_override=str(standard_price) if standard_price is not None else None,
-        )
-
-        # WooCommerce'e gönder
-        send_to_woocommerce(wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
-        print(f"✅ Item sync completed for {item_code}")
-        
+    # Item Group'tan kategori ID'sini al
+    category_id = None
+    try:
+        item_group_name = payload.get("item_group")
+        if item_group_name:
+            category_id = frappe.db.get_value(
+                "Item Group", {"name": item_group_name}, "custom_woocommerce_category_id"
+            )
+            print(f"DEBUG: Item Group '{item_group_name}' -> category_id: {category_id}")
     except Exception as e:
-        frappe.log_error(
-            title=f"Background Item Sync Error - {item_code}",
-            message=frappe.get_traceback()
-        )
+        print(f"DEBUG: Error getting category_id from Item Group: {e}")
+        category_id = None
+
+    # Ürüne bağlı birleşik meta_data (tek obje) al - tüm B2B grupları
+    aggregated = collect_customer_b2bking_groups_for_item(payload.get("item_code"))
+    dynamic_meta = aggregated.get("meta_data", []) if isinstance(aggregated, dict) else []
+
+    # Standard Selling fiyat kontrolü
+    standard_price = _get_standard_selling_price(payload.get("item_code"))
+    print("\n\n\n DEBUG:1 standard_price", standard_price)
+    
+    # Status belirleme: disabled durumuna göre
+    if payload.get("disabled", 0) == 1:
+        status_value = "draft"
+        print("DEBUG: Item disabled, status = draft")
+    else:
+        status_value = "publish"
+        print("DEBUG: Item enabled, status = publish")
+    
+    # Fiyat kontrolü - eğer fiyat yoksa draft yap
+    try:
+        std_price_num = float(standard_price) if standard_price is not None else 0.0
+    except Exception:
+        std_price_num = 0.0
+    if standard_price is None or std_price_num == 0.0:
+        frappe.msgprint(frappe._("Product price not defined. Product will be added as Draft"), alert=True)
+        status_value = "draft"
+
+    # WooCommerce formatına dönüştür
+    wc_payload = map_item_to_woocommerce(
+        doc,
+        payload,
+        base_url,
+        category_id,
+        dynamic_meta,
+        status_value=status_value,
+        regular_price_override=str(standard_price) if standard_price is not None else None,
+    )
+
+    # WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
+    send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
+    frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 
 
 
