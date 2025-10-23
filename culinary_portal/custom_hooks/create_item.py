@@ -364,7 +364,7 @@ def handle_item_saved(doc, method=None):
     )
 
     # WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
-    send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
+    frappe.enqueue(send_to_woocommerce, wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
     frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 
 
