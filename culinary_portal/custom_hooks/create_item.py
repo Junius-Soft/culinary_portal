@@ -259,38 +259,18 @@ def collect_customer_b2bking_groups_for_item(item_code: str) -> dict:
 
 
 def handle_item_saved(doc, method=None):
-    print("\n\n\n DEBUG:0 handle_item_saved STARTED", doc.doctype, doc.name)
+    print("\n\n\n DEBUG:0 handle_item_saved", doc)
     if doc.doctype=="Item Price":
         print("\n\n\n DEBUG:0 handle_item_saved Item Price", doc.as_dict())
     
     # Aynı istek içinde tekrar çalışmayı engelle
     if getattr(doc.flags, "culinary_wc_sync_ran", False):
-        print("\n\n\n DEBUG:0 EARLY RETURN - culinary_wc_sync_ran is True")
         return
     doc.flags.culinary_wc_sync_ran = True
 
     # Sync tarafından oluşturulan/güncellenen kayıtları atla
     if getattr(doc.flags, "created_by_sync", None):
-        print("\n\n\n DEBUG:0 EARLY RETURN - created_by_sync is True")
         return
-    
-    # İlgili alanlar değişmemişse sync'e gerek yok
-    if not doc.is_new():
-        if doc.doctype == "Item Price":
-            # Item Price için sadece fiyat değişmişse sync yap
-            if not doc.has_value_changed("price_list_rate"):
-                print("\n\n\n DEBUG:0 EARLY RETURN - Item Price rate not changed")
-                return
-        elif doc.doctype == "Item":
-            # Item için önemli alanlar değişmemişse sync'e gerek yok
-            important_fields = [
-                "item_name", "item_code", "description", "custom_short_description",
-                "standard_rate", "disabled", "image", "item_group"
-            ]
-            has_changes = any(doc.has_value_changed(field) for field in important_fields)
-            if not has_changes:
-                print("\n\n\n DEBUG:0 EARLY RETURN - No important Item fields changed")
-                return
 
     payload = doc.as_dict()
     consumer_key = get_consumer_key()
@@ -298,50 +278,31 @@ def handle_item_saved(doc, method=None):
 
     # Item Price değişikliği ise - sadece ilgili B2B group'u güncelle
     if doc.doctype == "Item Price":
-        print("\n\n\n DEBUG:1 Item Price workflow STARTED")
         item_code = payload.get("item_code")
         price_list_name = payload.get("price_list")
-        print(f"\n\n\n DEBUG:1 item_code: {item_code}, price_list: {price_list_name}")
         
         # Item'ın WooCommerce ID'si yoksa işlem yapma
         existing_wc_id = frappe.db.get_value("Item", {"name": item_code}, "custom_woocommerce_id")
-        print(f"\n\n\n DEBUG:1 existing_wc_id: {existing_wc_id}")
         if not existing_wc_id:
-            print(f"\n\n\n DEBUG:1 EARLY RETURN - Item {item_code} has no Portal ID")
+            print(f"DEBUG: Item {item_code} has no Portal ID, skipping Item Price sync")
             return
         
         # Sadece ilgili fiyat listesi için B2B group meta data al
         aggregated = collect_customer_b2bking_group_for_price_list(item_code, price_list_name)
         dynamic_meta = aggregated.get("meta_data", []) if isinstance(aggregated, dict) else []
-        print(f"\n\n\n DEBUG:1 dynamic_meta: {dynamic_meta}")
         
         if not dynamic_meta:
-            print(f"\n\n\n DEBUG:1 EARLY RETURN - No B2B group found for price list: {price_list_name}")
+            print(f"DEBUG: No B2B group found for price list: {price_list_name}")
             return
         
         # Sadece meta_data güncellemesi için payload
         wc_payload = {"meta_data": dynamic_meta}
-        print(f"\n\n\n DEBUG:1 About to enqueue - wc_payload: {wc_payload}")
         
         # WooCommerce'e gönder
-        frappe.enqueue(
-            'culinary_portal.custom_hooks.create_item.send_to_woocommerce',
-            queue='default',
-            timeout=300,
-            enqueue_after_commit=True,
-            deduplicate=True,
-            job_id=f"sync_item_price_{item_code}_{existing_wc_id}",
-            wc_payload=wc_payload,
-            consumer_key=consumer_key,
-            consumer_secret=consumer_secret,
-            item_code=item_code,
-            existing_wc_id=existing_wc_id
-        )
-        print(f"\n\n\n DEBUG:1 Enqueue SUCCESS - Item Price sync queued")
+        frappe.enqueue(send_to_woocommerce, wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
         return
 
     # Item değişikliği ise - normal akış
-    print("\n\n\n DEBUG:2 Item workflow STARTED")
     base_url = get_base_url()
     url = f"{get_wo_url()}/wp-json/wc/v3/products"
     print("\n\n\n DEBUG:0 base_url", base_url)
@@ -403,21 +364,7 @@ def handle_item_saved(doc, method=None):
     )
 
     # WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
-    print(f"\n\n\n DEBUG:2 About to enqueue Item - item_code: {payload.get('item_code')}, wc_id: {existing_wc_id}")
-    frappe.enqueue(
-        'culinary_portal.custom_hooks.create_item.send_to_woocommerce',
-        queue='default',
-        timeout=300,
-        enqueue_after_commit=True,
-        deduplicate=True,
-        job_id=f"sync_item_{payload.get('item_code')}",
-        payload=wc_payload,
-        consumer_key=consumer_key,
-        consumer_secret=consumer_secret,
-        item_code=payload.get("item_code"),
-        existing_wc_id=existing_wc_id
-    )
-    print(f"\n\n\n DEBUG:2 Enqueue SUCCESS - Item sync queued")
+    frappe.enqueue(send_to_woocommerce, wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
     frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 
 
@@ -508,36 +455,29 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
         return wc_data
 
 
-def send_to_woocommerce(wc_payload=None, payload=None, consumer_key=None, consumer_secret=None, item_code=None, existing_wc_id=None):
+def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, existing_wc_id=None):
     """Portal API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
-    print(f"\n\n\n ⭐⭐⭐ send_to_woocommerce STARTED - item_code: {item_code}, wc_id: {existing_wc_id}")
     try:
-        # payload parametresi hem wc_payload hem payload olarak gelebilir (geriye uyumluluk için)
-        final_payload = wc_payload or payload
-        print(f"\n\n\n ⭐⭐⭐ final_payload: {final_payload}")
-        
         url = f"{get_wo_url()}/wp-json/wc/v3/products"
         dokanurl=f"{get_wo_url()}/wp-json/dokan/v1/products"
 
         # ID varsa güncelle, yoksa yeni oluştur
         if existing_wc_id:
-            print(f"\n\n\n ⭐⭐⭐ Updating existing product - URL: {url}/{existing_wc_id}")
             response = requests.put(
                 f"{url}/{existing_wc_id}",
                 auth=(consumer_key, consumer_secret),
-                json=final_payload,
+                json=payload,
                 headers={"Content-Type": "application/json"},
             )
-            print(f"\n\n\n ⭐⭐⭐ PUT Response - Status: {response.status_code}")
+            print(f"🔄 Portal ürün güncellendi - ID: {existing_wc_id}")
         else:
-            print(f"\n\n\n ⭐⭐⭐ Creating new product - URL: {url}")
             response = requests.post(
                 url,
                 auth=(consumer_key, consumer_secret),
-                json=final_payload,
+                json=payload,
                 headers={"Content-Type": "application/json"},
             )
-            print(f"\n\n\n ⭐⭐⭐ POST Response - Status: {response.status_code}")
+            print("➕ Yeni Portal ürün oluşturuluyor",response)
 
         if response.status_code in (200, 201):
             response_data = response.json()
@@ -556,16 +496,14 @@ def send_to_woocommerce(wc_payload=None, payload=None, consumer_key=None, consum
                     )
             
             # frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
-            print(f"\n\n\n ⭐⭐⭐ SUCCESS - WC Product ID: {wc_product_id}")
+            print("\n\n\n DEBUG:2 wc_product_id", payload)
         else:
-            print(f"\n\n\n ⭐⭐⭐ FAILED - Status: {response.status_code}, Response: {response.text[:200]}")
             frappe.log_error(
                 title="Portal API Error",
                 message=f"Status: {response.status_code}\nResponse: {response.text}",
             )
 
     except Exception as e:
-        print(f"\n\n\n ⭐⭐⭐ EXCEPTION in send_to_woocommerce: {str(e)}")
         frappe.log_error(
             title="Portal Send Error",
             message=frappe.get_traceback(),
