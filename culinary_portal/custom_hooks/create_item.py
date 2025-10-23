@@ -273,6 +273,24 @@ def handle_item_saved(doc, method=None):
     if getattr(doc.flags, "created_by_sync", None):
         print("\n\n\n DEBUG:0 EARLY RETURN - created_by_sync is True")
         return
+    
+    # İlgili alanlar değişmemişse sync'e gerek yok
+    if not doc.is_new():
+        if doc.doctype == "Item Price":
+            # Item Price için sadece fiyat değişmişse sync yap
+            if not doc.has_value_changed("price_list_rate"):
+                print("\n\n\n DEBUG:0 EARLY RETURN - Item Price rate not changed")
+                return
+        elif doc.doctype == "Item":
+            # Item için önemli alanlar değişmemişse sync'e gerek yok
+            important_fields = [
+                "item_name", "item_code", "description", "custom_short_description",
+                "standard_rate", "disabled", "image", "item_group"
+            ]
+            has_changes = any(doc.has_value_changed(field) for field in important_fields)
+            if not has_changes:
+                print("\n\n\n DEBUG:0 EARLY RETURN - No important Item fields changed")
+                return
 
     payload = doc.as_dict()
     consumer_key = get_consumer_key()
@@ -307,8 +325,12 @@ def handle_item_saved(doc, method=None):
         
         # WooCommerce'e gönder
         frappe.enqueue(
-            send_to_woocommerce,
+            'culinary_portal.custom_hooks.create_item.send_to_woocommerce',
             queue='default',
+            timeout=300,
+            enqueue_after_commit=True,
+            deduplicate=True,
+            job_id=f"sync_item_price_{item_code}_{existing_wc_id}",
             wc_payload=wc_payload,
             consumer_key=consumer_key,
             consumer_secret=consumer_secret,
@@ -383,8 +405,12 @@ def handle_item_saved(doc, method=None):
     # WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
     print(f"\n\n\n DEBUG:2 About to enqueue Item - item_code: {payload.get('item_code')}, wc_id: {existing_wc_id}")
     frappe.enqueue(
-        send_to_woocommerce,
+        'culinary_portal.custom_hooks.create_item.send_to_woocommerce',
         queue='default',
+        timeout=300,
+        enqueue_after_commit=True,
+        deduplicate=True,
+        job_id=f"sync_item_{payload.get('item_code')}",
         payload=wc_payload,
         consumer_key=consumer_key,
         consumer_secret=consumer_secret,
