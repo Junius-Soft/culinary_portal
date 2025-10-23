@@ -19,7 +19,7 @@ def _build_image_src(image_path: Optional[str]) -> str:
 
 
 def _post_wc_category(name: str,  slug: Optional[str] = None, parent_id: Optional[int] = None) -> Optional[int]:
-    """WooCommerce kategori oluşturur ve id döner; hata halinde None."""
+    """Portal kategori oluşturur ve id döner; hata halinde None."""
     print(f"\n\n\n DEBUG:55 name: {name}, slug: {slug}, parent_id: {parent_id}")
     try:
         
@@ -51,19 +51,19 @@ def _post_wc_category(name: str,  slug: Optional[str] = None, parent_id: Optiona
             data = resp.json()
             return data.get("id") if isinstance(data, dict) else None
         frappe.log_error(
-            title="WooCommerce Category POST Error (Supplier)",
+            title="Portal Category POST Error (Supplier)",
             message=f"Status: {resp.status_code}\nResponse: {resp.text}",
         )
     except Exception:
         frappe.log_error(
-            title="WooCommerce Category POST Exception (Supplier)",
+            title="Portal Category POST Exception (Supplier)",
             message=frappe.get_traceback(),
         )
     return None
 
 
 def _update_wc_category(category_id: int, name: str, image_src: str, slug: Optional[str] = None, parent_id: Optional[int] = None) -> bool:
-    """Mevcut WooCommerce kategoriyi günceller; başarılı olursa True döner."""
+    """Mevcut Portal kategoriyi günceller; başarılı olursa True döner."""
     try:
         url = f"{get_wo_url()}/wp-json/wc/v3/products/categories/{category_id}" 
         payload: dict = {
@@ -84,19 +84,19 @@ def _update_wc_category(category_id: int, name: str, image_src: str, slug: Optio
         if resp.status_code in (200, 201):
             return True
         frappe.log_error(
-            title="WooCommerce Category UPDATE Error (Supplier)",
+            title="Portal Category UPDATE Error (Supplier)",
             message=f"Status: {resp.status_code}\nResponse: {resp.text}",
         )
     except Exception:
         frappe.log_error(
-            title="WooCommerce Category UPDATE Exception (Supplier)",
+            title="Portal Category UPDATE Exception (Supplier)",
             message=frappe.get_traceback(),
         )
     return False
 
 
 def _delete_wc_category(category_id: int, force_delete: bool = True) -> bool:
-    """WooCommerce kategorisini siler; başarılı olursa True döner."""
+    """Portal kategorisini siler; başarılı olursa True döner."""
     try:
         url = f"{get_wo_url()}/wp-json/wc/v3/products/categories/{category_id}" 
         params = {"force": force_delete} if force_delete else {}
@@ -109,19 +109,19 @@ def _delete_wc_category(category_id: int, force_delete: bool = True) -> bool:
         if resp.status_code in (200, 204):
             return True
         frappe.log_error(
-            title="WooCommerce Category DELETE Error (Supplier)",
+            title="Portal Category DELETE Error (Supplier)",
             message=f"Status: {resp.status_code}\nResponse: {resp.text}",
         )
     except Exception:
         frappe.log_error(
-            title="WooCommerce Category DELETE Exception (Supplier)",
+            title="Portal Category DELETE Exception (Supplier)",
             message=frappe.get_traceback(),
         )
     return False
 
 
 def handle_supplier_sync(doc, method=None, old=None, new=None, merge: bool = False):
-    """Supplier oluşturulduğunda/güncellendiğinde WooCommerce'te kategori oluşturur veya günceller."""
+    """Supplier oluşturulduğunda/güncellendiğinde Portal'te kategori oluşturur veya günceller."""
     try:
         if getattr(doc.flags, "culinary_wc_supplier_sync_ran", False):
             return
@@ -144,7 +144,7 @@ def handle_supplier_sync(doc, method=None, old=None, new=None, merge: bool = Fal
             )
             if not updated:
                 frappe.log_error(
-                    title="WooCommerce Supplier Category Update Failed",
+                    title="Portal Supplier Category Update Failed",
                     message=f"Failed to update category {existing_wc_id} for Supplier {doc.name}",
                 )
         else:
@@ -158,30 +158,30 @@ def handle_supplier_sync(doc, method=None, old=None, new=None, merge: bool = Fal
                     frappe.db.commit()
                 except Exception:
                     frappe.log_error(
-                        title="Supplier WooCommerce Category ID Update Error",
+                        title="Supplier Portal Category ID Update Error",
                         message=frappe.get_traceback(),
                     )
     except Exception:
         frappe.log_error(
-            title="Supplier WooCommerce Category Sync Error",
+            title="Supplier Portal Category Sync Error",
             message=frappe.get_traceback(),
         )
 
 
 def handle_supplier_on_trash(doc, method=None):
-    """Supplier silindiğinde WooCommerce'teki karşılık gelen kategoriyi de siler."""
+    """Supplier silindiğinde Portal'teki karşılık gelen kategoriyi de siler."""
     try:
         existing_wc_id = getattr(doc, "custom_woocommerce_category_id", None)
         if existing_wc_id:
             deleted = _delete_wc_category(existing_wc_id)
             if not deleted:
                 frappe.log_error(
-                    title="WooCommerce Supplier Category Delete Failed",
+                    title="Portal Supplier Category Delete Failed",
                     message=f"Failed to delete category {existing_wc_id} for Supplier {doc.name}",
                 )
     except Exception:
         frappe.log_error(
-            title="Supplier WooCommerce Category Delete Sync Error",
+            title="Supplier Portal Category Delete Sync Error",
             message=frappe.get_traceback(),
         )
 

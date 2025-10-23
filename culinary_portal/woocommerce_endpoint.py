@@ -44,7 +44,7 @@ def validate_request() -> Tuple[bool, Optional[HTTPStatus], Optional[str]]:
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def order_created(*args, **kwargs):
 	"""
-	Accepts payload data from WooCommerce "Order Created" webhook
+	Accepts payload data from Portal "Order Created" webhook
 	"""
 	valid, status, msg = validate_request()
 	if not valid:

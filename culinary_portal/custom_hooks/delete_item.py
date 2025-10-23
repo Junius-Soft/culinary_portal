@@ -4,25 +4,25 @@ from frappe.utils import get_url
 
 
 def get_wo_url():
-    """WooCommerce URL'ini site config'den veya default URL'den alır"""
+    """Portal URL'ini site config'den veya default URL'den alır"""
     site_conf = getattr(frappe.local, "conf", {}) or {}
     return site_conf.get("woocommerce_url") or get_url()
 
 
 def get_consumer_key():
-    """WooCommerce API Consumer Key'i döndürür"""
+    """Portal API Consumer Key'i döndürür"""
     woocommerce_server = frappe.get_value("WooCommerce Server", "www.temayolu.com", "api_consumer_key")
     return woocommerce_server or ""
 
 
 def get_consumer_secret():
-    """WooCommerce API Consumer Secret'ı döndürür"""
+    """Portal API Consumer Secret'ı döndürür"""
     woocommerce_server = frappe.get_value("WooCommerce Server", "www.temayolu.com", "api_consumer_secret")
     return woocommerce_server or ""
 
 
 def handle_item_deleted(doc, method=None):
-    """Item silindiğinde WooCommerce'den de siler"""
+    """Item silindiğinde Portal'den de siler"""
     print(f"\n\n\n DEBUG: Item siliniyor - {doc.name}")
     
     # Sync tarafından oluşturulan/güncellenen kayıtları atla
@@ -33,7 +33,7 @@ def handle_item_deleted(doc, method=None):
     wc_id = doc.get("custom_woocommerce_id")
     
     if not wc_id:
-        print(f"DEBUG: Item '{doc.name}' için WooCommerce ID bulunamadı, silme işlemi atlanıyor")
+        print(f"DEBUG: Item '{doc.name}' için Portal ID bulunamadı, silme işlemi atlanıyor")
         return
     
     # WooCommerce'den sil
@@ -41,21 +41,21 @@ def handle_item_deleted(doc, method=None):
         delete_from_woocommerce(wc_id, doc.name)
     except Exception as e:
         frappe.log_error(
-            title="Item Delete from WooCommerce Error",
+            title="Item Delete from Portal Error",
             message=f"Item: {doc.name}, WC ID: {wc_id}, Error: {str(e)}\n\n{frappe.get_traceback()}"
         )
         # Hata olsa bile ERPNext'ten silinmesine izin ver
-        print(f"DEBUG: WooCommerce'den silme hatası: {str(e)}")
+        print(f"DEBUG: Portal'den silme hatası: {str(e)}")
 
 
 def delete_from_woocommerce(wc_product_id, item_code):
-    """WooCommerce API'sinden ürünü siler (force delete)"""
+    """Portal API'sinden ürünü siler (force delete)"""
     try:
         consumer_key = get_consumer_key()
         consumer_secret = get_consumer_secret()
         
         if not consumer_key or not consumer_secret:
-            print("DEBUG: WooCommerce API credentials bulunamadı")
+            print("DEBUG: Portal API credentials bulunamadı")
             return
         
         url = f"{get_wo_url()}/wp-json/wc/v3/products/{wc_product_id}"
@@ -69,21 +69,21 @@ def delete_from_woocommerce(wc_product_id, item_code):
         )
         
         if response.status_code == 200:
-            print(f"✅ WooCommerce ürün silindi - Item: {item_code}, WC ID: {wc_product_id}")
-            frappe.msgprint(frappe._("Product successfully deleted from WooCommerce"), alert=True)
+            print(f"✅ Portal ürün silindi - Item: {item_code}, WC ID: {wc_product_id}")
+            frappe.msgprint(frappe._("Product successfully deleted from Portal"), alert=True)
         elif response.status_code == 404:
-            print(f"⚠️ WooCommerce'de ürün bulunamadı - Item: {item_code}, WC ID: {wc_product_id}")
+            print(f"⚠️ Portal'de ürün bulunamadı - Item: {item_code}, WC ID: {wc_product_id}")
         else:
             error_msg = f"Status: {response.status_code}\nResponse: {response.text}"
-            print(f"❌ WooCommerce silme hatası - {error_msg}")
+            print(f"❌ Portal silme hatası - {error_msg}")
             frappe.log_error(
-                title="WooCommerce Product Delete Error",
+                title="Portal Product Delete Error",
                 message=f"Item: {item_code}, WC ID: {wc_product_id}\n{error_msg}"
             )
             
     except Exception as e:
         frappe.log_error(
-            title="WooCommerce Delete Error",
+            title="Portal Delete Error",
             message=f"Item: {item_code}, WC ID: {wc_product_id}\n{frappe.get_traceback()}"
         )
         raise
@@ -91,7 +91,7 @@ def delete_from_woocommerce(wc_product_id, item_code):
 
 @frappe.whitelist()
 def bulk_delete_items_from_woocommerce(item_codes):
-    """Toplu ürün silme - WooCommerce'den siler (ERPNext'ten silmez)"""
+    """Toplu ürün silme - Portal'den siler (ERPNext'ten silmez)"""
     try:
         if isinstance(item_codes, str):
             import json

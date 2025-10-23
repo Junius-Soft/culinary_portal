@@ -40,7 +40,7 @@ def get_consumer_secret():
 # Debug prints removed for security
 
 def get_wc_category_id(category_name: str) -> int | None:
-    """WooCommerce'de kategori adını arayıp id'sini döndürür; yoksa None."""
+    """Portal'de kategori adını arayıp id'sini döndürür; yoksa None."""
     if not category_name:
         return None
     try:
@@ -62,7 +62,7 @@ def get_wc_category_id(category_name: str) -> int | None:
 
 
 def _fetch_wc_customer_meta_by_email(email: str, consumer_key: str, consumer_secret: str) -> dict:
-    """Verilen e‑posta için WooCommerce customers API'den kullanıcının id ve meta_data'sını döndürür."""
+    """Verilen e‑posta için Portal customers API'den kullanıcının id ve meta_data'sını döndürür."""
     if not email:
         return {}
     url = f"{get_wo_url()}/wp-json/wc/v3/customers"
@@ -284,7 +284,7 @@ def handle_item_saved(doc, method=None):
         # Item'ın WooCommerce ID'si yoksa işlem yapma
         existing_wc_id = frappe.db.get_value("Item", {"name": item_code}, "custom_woocommerce_id")
         if not existing_wc_id:
-            print(f"DEBUG: Item {item_code} has no WooCommerce ID, skipping Item Price sync")
+            print(f"DEBUG: Item {item_code} has no Portal ID, skipping Item Price sync")
             return
         
         # Sadece ilgili fiyat listesi için B2B group meta data al
@@ -370,7 +370,7 @@ def handle_item_saved(doc, method=None):
 
 
 def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, meta_data: list[dict], status_value: str = "publish", regular_price_override: str | None = None):
-    """ERPNext Item verisini WooCommerce formatına dönüştürür"""
+    """ERPNext Item verisini Portal formatına dönüştürür"""
     print("\n\n\n DEBUG:1 DOC NAME", doc)
     image_path = item_data.get("image", "") or ""
     images = []
@@ -456,7 +456,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
 
 
 def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, existing_wc_id=None):
-    """WooCommerce API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
+    """Portal API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
     try:
         url = f"{get_wo_url()}/wp-json/wc/v3/products"
         dokanurl=f"{get_wo_url()}/wp-json/dokan/v1/products"
@@ -469,7 +469,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                 json=payload,
                 headers={"Content-Type": "application/json"},
             )
-            print(f"🔄 WooCommerce ürün güncellendi - ID: {existing_wc_id}")
+            print(f"🔄 Portal ürün güncellendi - ID: {existing_wc_id}")
         else:
             response = requests.post(
                 url,
@@ -477,7 +477,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                 json=payload,
                 headers={"Content-Type": "application/json"},
             )
-            print("➕ Yeni WooCommerce ürün oluşturuluyor",response)
+            print("➕ Yeni Portal ürün oluşturuluyor",response)
 
         if response.status_code in (200, 201):
             response_data = response.json()
@@ -488,18 +488,18 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                 try:
                     frappe.db.set_value("Item", item_code, "custom_woocommerce_id", wc_product_id)
                     frappe.db.commit()
-                    print(f"✅ WooCommerce ID ({wc_product_id}) Item'a kaydedildi")
+                    print(f"✅ Portal ID ({wc_product_id}) Item'a kaydedildi")
                 except Exception as e:
                     frappe.log_error(
-                        title="Item WooCommerce ID Update Error",
+                        title="Item Portal ID Update Error",
                         message=f"Item: {item_code}, WC ID: {wc_product_id}, Error: {str(e)}"
                     )
             
-            # frappe.msgprint(frappe._("Item successfully synchronized to WooCommerce"))
+            # frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
             print("\n\n\n DEBUG:2 wc_product_id", payload)
         else:
             frappe.log_error(
-                title="WooCommerce API Error",
+                title="Portal API Error",
                 message=f"Status: {response.status_code}\nResponse: {response.text}",
             )
 
@@ -549,7 +549,7 @@ def collect_customer_b2bking_groups() -> dict:
 
 @frappe.whitelist()
 def sync_all_items_to_woocommerce():
-    """Tüm Item'ları WooCommerce'e senkronize eder"""
+    """Tüm Item'ları Portal'e senkronize eder"""
     try:
         # Tüm aktif item'ları al (isteğe bağlı: disabled olanları dahil etmek için filtreyi kaldırabilirsiniz)
         items = frappe.db.get_list(

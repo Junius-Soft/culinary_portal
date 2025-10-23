@@ -19,7 +19,7 @@ def _build_image_src(image_path: Optional[str]) -> str:
 
 
 def _post_wc_category(name: str, image_src: str) -> Optional[int]:
-    """WooCommerce kategori oluşturur ve id döner; hata halinde None."""
+    """Portal kategori oluşturur ve id döner; hata halinde None."""
     try:
         url = f"{get_wo_url()}/wp-json/wc/v3/products/categories"
         payload = {
@@ -38,19 +38,19 @@ def _post_wc_category(name: str, image_src: str) -> Optional[int]:
             data = resp.json()
             return data.get("id") if isinstance(data, dict) else None
         frappe.log_error(
-            title="WooCommerce Category POST Error",
+            title="Portal Category POST Error",
             message=f"Status: {resp.status_code}\nResponse: {resp.text}.",
         )
     except Exception:
         frappe.log_error(
-            title="WooCommerce Category POST Exception",
+            title="Portal Category POST Exception",
             message=frappe.get_traceback(),
         )
     return None
 
 
 def _update_wc_category(category_id: int, name: str, image_src: str) -> bool:
-    """Mevcut WooCommerce kategoriyi günceller; başarılı olursa True döner."""
+    """Mevcut Portal kategoriyi günceller; başarılı olursa True döner."""
     try:
         url = f"{get_wo_url()}/wp-json/wc/v3/products/categories/{category_id}" 
         payload = {
@@ -70,19 +70,19 @@ def _update_wc_category(category_id: int, name: str, image_src: str) -> bool:
             print(f"\n\n\n DEBUG:3 UPDATE successful for category {category_id}")
             return True
         frappe.log_error(
-            title="WooCommerce Category UPDATE Error",
+            title="Portal Category UPDATE Error",
             message=f"Status: {resp.status_code}\nResponse: {resp.text}",
         )
     except Exception:
         frappe.log_error(
-            title="WooCommerce Category UPDATE Exception",
+            title="Portal Category UPDATE Exception",
             message=frappe.get_traceback(),
         )
     return False
 
 
 def _delete_wc_category(category_id: int, force_delete: bool = True) -> bool:
-    """WooCommerce kategorisini siler; başarılı olursa True döner."""
+    """Portal kategorisini siler; başarılı olursa True döner."""
     try:
         url = f"{get_wo_url()}/wp-json/wc/v3/products/categories/{category_id}" 
         params = {"force": force_delete} if force_delete else {}
@@ -98,12 +98,12 @@ def _delete_wc_category(category_id: int, force_delete: bool = True) -> bool:
             print(f"\n\n\n DEBUG:5 DELETE successful for category {category_id}")
             return True
         frappe.log_error(
-            title="WooCommerce Category DELETE Error",
+            title="Portal Category DELETE Error",
             message=f"Status: {resp.status_code}\nResponse: {resp.text}",
         )
     except Exception:
         frappe.log_error(
-            title="WooCommerce Category DELETE Exception",
+            title="Portal Category DELETE Exception",
             message=frappe.get_traceback(),
         )
     return False
@@ -111,7 +111,7 @@ def _delete_wc_category(category_id: int, force_delete: bool = True) -> bool:
 
 def handle_item_group_after_insert(doc, method=None, old=None, new=None, merge=False):
     print("\n\n\n DEBUG:0 handle_item_group_after_insert", doc)
-    """Item Group oluşturulduğunda WooCommerce'te kategori oluşturur veya günceller."""
+    """Item Group oluşturulduğunda Portal'te kategori oluşturur veya günceller."""
     print("\n\n\n DEBUG:0 handle_item_group_after_insert", doc)
     try:
         # Aynı istek içinde tekrar çalışmayı engelle
@@ -136,7 +136,7 @@ def handle_item_group_after_insert(doc, method=None, old=None, new=None, merge=F
             )
             if not update_success:
                 frappe.log_error(
-                    title="WooCommerce Category Update Failed",
+                    title="Portal Category Update Failed",
                     message=f"Failed to update category {existing_wc_id} for Item Group {doc.name}",
                 )
         else:
@@ -152,18 +152,18 @@ def handle_item_group_after_insert(doc, method=None, old=None, new=None, merge=F
                     frappe.db.commit()
                 except Exception:
                     frappe.log_error(
-                        title="Item Group WooCommerce Category ID Update Error",
+                        title="Item Group Portal Category ID Update Error",
                         message=frappe.get_traceback(),
                     )
     except Exception:
         frappe.log_error(
-            title="Item Group WooCommerce Category Sync Error",
+            title="Item Group Portal Category Sync Error",
             message=frappe.get_traceback(),
         )
 
 
 def handle_item_group_on_trash(doc, method=None):
-    """Item Group silindiğinde WooCommerce'teki karşılık gelen kategoriyi de siler."""
+    """Item Group silindiğinde Portal'teki karşılık gelen kategoriyi de siler."""
     print("\n\n\n DEBUG:6 handle_item_group_on_trash", doc)
     try:
         # WooCommerce kategori ID'sini kontrol et
@@ -172,21 +172,21 @@ def handle_item_group_on_trash(doc, method=None):
         
         if existing_wc_id:
             # WooCommerce'de kategoriyi sil
-            print(f"\n\n\n DEBUG:8 Deleting WooCommerce category {existing_wc_id}")
+            print(f"\n\n\n DEBUG:8 Deleting Portal category {existing_wc_id}")
             delete_success = _delete_wc_category(category_id=existing_wc_id)
             
             if not delete_success:
                 frappe.log_error(
-                    title="WooCommerce Category Delete Failed",
+                    title="Portal Category Delete Failed",
                     message=f"Failed to delete category {existing_wc_id} for Item Group {doc.name}",
                 )
             else:
-                print(f"\n\n\n DEBUG:9 Successfully deleted WooCommerce category {existing_wc_id}")
+                print(f"\n\n\n DEBUG:9 Successfully deleted Portal category {existing_wc_id}")
         else:
-            print("\n\n\n DEBUG:10 No WooCommerce category ID found, skipping delete")
+            print("\n\n\n DEBUG:10 No Portal category ID found, skipping delete")
             
     except Exception:
         frappe.log_error(
-            title="Item Group WooCommerce Category Delete Sync Error",
+            title="Item Group Portal Category Delete Sync Error",
             message=frappe.get_traceback(),
         )
