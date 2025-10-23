@@ -484,30 +484,34 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
 
 def send_to_woocommerce(wc_payload=None, payload=None, consumer_key=None, consumer_secret=None, item_code=None, existing_wc_id=None):
     """Portal API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
+    print(f"\n\n\n ⭐⭐⭐ send_to_woocommerce STARTED - item_code: {item_code}, wc_id: {existing_wc_id}")
     try:
         # payload parametresi hem wc_payload hem payload olarak gelebilir (geriye uyumluluk için)
         final_payload = wc_payload or payload
+        print(f"\n\n\n ⭐⭐⭐ final_payload: {final_payload}")
         
         url = f"{get_wo_url()}/wp-json/wc/v3/products"
         dokanurl=f"{get_wo_url()}/wp-json/dokan/v1/products"
 
         # ID varsa güncelle, yoksa yeni oluştur
         if existing_wc_id:
+            print(f"\n\n\n ⭐⭐⭐ Updating existing product - URL: {url}/{existing_wc_id}")
             response = requests.put(
                 f"{url}/{existing_wc_id}",
                 auth=(consumer_key, consumer_secret),
                 json=final_payload,
                 headers={"Content-Type": "application/json"},
             )
-            print(f"🔄 Portal ürün güncellendi - ID: {existing_wc_id}")
+            print(f"\n\n\n ⭐⭐⭐ PUT Response - Status: {response.status_code}")
         else:
+            print(f"\n\n\n ⭐⭐⭐ Creating new product - URL: {url}")
             response = requests.post(
                 url,
                 auth=(consumer_key, consumer_secret),
                 json=final_payload,
                 headers={"Content-Type": "application/json"},
             )
-            print("➕ Yeni Portal ürün oluşturuluyor",response)
+            print(f"\n\n\n ⭐⭐⭐ POST Response - Status: {response.status_code}")
 
         if response.status_code in (200, 201):
             response_data = response.json()
@@ -526,14 +530,16 @@ def send_to_woocommerce(wc_payload=None, payload=None, consumer_key=None, consum
                     )
             
             # frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
-            print("\n\n\n DEBUG:2 wc_product_id", final_payload)
+            print(f"\n\n\n ⭐⭐⭐ SUCCESS - WC Product ID: {wc_product_id}")
         else:
+            print(f"\n\n\n ⭐⭐⭐ FAILED - Status: {response.status_code}, Response: {response.text[:200]}")
             frappe.log_error(
                 title="Portal API Error",
                 message=f"Status: {response.status_code}\nResponse: {response.text}",
             )
 
     except Exception as e:
+        print(f"\n\n\n ⭐⭐⭐ EXCEPTION in send_to_woocommerce: {str(e)}")
         frappe.log_error(
             title="Portal Send Error",
             message=frappe.get_traceback(),
