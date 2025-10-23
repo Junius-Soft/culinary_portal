@@ -493,17 +493,18 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                         message=f"Item: {item_code}, WC ID: {wc_product_id}, Error: {str(e)}"
                     )
             
-            frappe.msgprint(frappe._("Item successfully synchronized to WooCommerce"))
+            # frappe.msgprint(frappe._("Item successfully synchronized to WooCommerce"))
             print("\n\n\n DEBUG:2 wc_product_id", payload)
         else:
             frappe.log_error(
                 title="WooCommerce API Error",
                 message=f"Status: {response.status_code}\nResponse: {response.text}",
             )
+        frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 
     except Exception as e:
         frappe.log_error(
-            title="WooCommerce Send Error",
+            title="Portal Send Error",
             message=frappe.get_traceback(),
         )
 
