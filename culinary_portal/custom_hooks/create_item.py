@@ -299,7 +299,15 @@ def handle_item_saved(doc, method=None):
         wc_payload = {"meta_data": dynamic_meta}
         
         # WooCommerce'e gönder
-        frappe.enqueue(send_to_woocommerce, wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
+        frappe.enqueue(
+            send_to_woocommerce,
+            queue='default',
+            wc_payload=wc_payload,
+            consumer_key=consumer_key,
+            consumer_secret=consumer_secret,
+            item_code=item_code,
+            existing_wc_id=existing_wc_id
+        )
         return
 
     # Item değişikliği ise - normal akış
@@ -364,7 +372,15 @@ def handle_item_saved(doc, method=None):
     )
 
     # WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
-    frappe.enqueue(send_to_woocommerce, wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
+    frappe.enqueue(
+        send_to_woocommerce,
+        queue='default',
+        payload=wc_payload,
+        consumer_key=consumer_key,
+        consumer_secret=consumer_secret,
+        item_code=payload.get("item_code"),
+        existing_wc_id=existing_wc_id
+    )
     frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 
 
@@ -455,9 +471,12 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
         return wc_data
 
 
-def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, existing_wc_id=None):
+def send_to_woocommerce(wc_payload=None, payload=None, consumer_key=None, consumer_secret=None, item_code=None, existing_wc_id=None):
     """Portal API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
     try:
+        # payload parametresi hem wc_payload hem payload olarak gelebilir (geriye uyumluluk için)
+        final_payload = wc_payload or payload
+        
         url = f"{get_wo_url()}/wp-json/wc/v3/products"
         dokanurl=f"{get_wo_url()}/wp-json/dokan/v1/products"
 
@@ -466,7 +485,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
             response = requests.put(
                 f"{url}/{existing_wc_id}",
                 auth=(consumer_key, consumer_secret),
-                json=payload,
+                json=final_payload,
                 headers={"Content-Type": "application/json"},
             )
             print(f"🔄 Portal ürün güncellendi - ID: {existing_wc_id}")
@@ -474,7 +493,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
             response = requests.post(
                 url,
                 auth=(consumer_key, consumer_secret),
-                json=payload,
+                json=final_payload,
                 headers={"Content-Type": "application/json"},
             )
             print("➕ Yeni Portal ürün oluşturuluyor",response)
@@ -496,7 +515,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                     )
             
             # frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
-            print("\n\n\n DEBUG:2 wc_product_id", payload)
+            print("\n\n\n DEBUG:2 wc_product_id", final_payload)
         else:
             frappe.log_error(
                 title="Portal API Error",
