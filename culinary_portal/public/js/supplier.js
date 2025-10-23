@@ -4,7 +4,7 @@ frappe.ui.form.on('Supplier', {
         if (!frm.is_new()) {
             frm.add_custom_button(__('Sync Dokan Vendor'), function() {
                 sync_dokan_vendor(frm);
-            }, __('WooCommerce'));
+            }, __('Portal'));
         }
     }
 });
