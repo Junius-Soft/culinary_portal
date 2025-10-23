@@ -11,7 +11,10 @@ app_license = "mit"
 fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Culinary Portal"]]},
     # {"dt": "Client Script", "filters": [["module", "=", "Culinary Portal"]]},
-    # {"dt": "Item Group"},
+    {"dt": "Item Group"},
+    {"dt": "Item"},
+    {"dt": "Supplier"},
+    {"dt": "Customer"},
 ]
 
 # required_apps = []
