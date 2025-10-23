@@ -299,7 +299,7 @@ def handle_item_saved(doc, method=None):
         wc_payload = {"meta_data": dynamic_meta}
         
         # WooCommerce'e gönder
-        send_to_woocommerce(wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
+        frappe.enqueue(send_to_woocommerce, wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
         return
 
     # Item değişikliği ise - normal akış
