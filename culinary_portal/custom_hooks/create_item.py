@@ -365,6 +365,8 @@ def handle_item_saved(doc, method=None):
 
     # WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
     send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
+    frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
+
 
 
 def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, meta_data: list[dict], status_value: str = "publish", regular_price_override: str | None = None):
@@ -500,7 +502,6 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                 title="WooCommerce API Error",
                 message=f"Status: {response.status_code}\nResponse: {response.text}",
             )
-        frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 
     except Exception as e:
         frappe.log_error(
