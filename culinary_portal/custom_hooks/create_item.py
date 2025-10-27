@@ -28,6 +28,15 @@ def get_consumer_secret():
     site_conf = getattr(frappe.local, "conf", {}) or {}
     return site_conf.get("consumer_secret") or ""
 
+
+def get_wp_user():
+    site_conf = getattr(frappe.local, "conf", {}) or {}
+    return site_conf.get("wp_user") or ""
+
+def get_wp_app_key():
+    site_conf = getattr(frappe.local, "conf", {}) or {}
+    return site_conf.get("wp_app_key") or ""
+
 # def get_consumer_key():
 #     woocommerce_server = frappe.get_value("WooCommerce Server", "www.temayolu.com", "api_consumer_key")
 
@@ -299,7 +308,7 @@ def handle_item_saved(doc, method=None):
         wc_payload = {"meta_data": dynamic_meta}
         
         # WooCommerce'e gönder
-        frappe.enqueue(send_to_woocommerce, wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
+        send_to_woocommerce(wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
         return
 
     # Item değişikliği ise - normal akış
@@ -364,7 +373,7 @@ def handle_item_saved(doc, method=None):
     )
 
     # WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
-    frappe.enqueue(send_to_woocommerce, wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
+    send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
     frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 
 
@@ -455,11 +464,77 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
         return wc_data
 
 
+def update_dokan_post_author(item_code: str, wc_product_id: int):
+    """Item'ın supplier'ındaki vendor ID'yi Dokan API'sine post_author olarak gönderir"""
+    try:
+        # Item'ın supplier bilgisini al
+        item_doc = frappe.get_doc("Item", item_code)
+        
+        if not hasattr(item_doc, 'supplier_items') or not item_doc.supplier_items:
+            print(f"DEBUG: Item {item_code} has no suppliers, skipping Dokan update")
+            return
+        
+        # İlk supplier'ı al
+        first_supplier = item_doc.supplier_items[0].supplier
+        if not first_supplier:
+            print(f"DEBUG: Item {item_code} has no valid supplier, skipping Dokan update")
+            return
+        
+        # Supplier'ın vendor ID'sini al
+        vendor_id = frappe.db.get_value("Supplier", first_supplier, "custom_woocommerce_vendor_id")
+        
+        # Eğer vendor ID yoksa, sync_dokan_vendor_id ile güncelle
+        if not vendor_id:
+            print(f"DEBUG: Supplier {first_supplier} has no vendor ID, syncing...")
+            from culinary_portal.custom_hooks.sync_supplier import sync_dokan_vendor_id
+            result = sync_dokan_vendor_id(first_supplier)
+            
+            if result.get("status") == "success":
+                vendor_id = result.get("vendor_id")
+                print(f"✅ Vendor ID synced for Supplier {first_supplier}: {vendor_id}")
+            else:
+                print(f"⚠️ Could not sync vendor ID for Supplier {first_supplier}: {result.get('message')}")
+                return
+        
+        # Dokan API'sine istek at
+        dokan_url = f"{get_wo_url()}/wp-json/dokan/v1/products/{wc_product_id}"
+        wp_user = get_wp_user()
+        wp_app_key = get_wp_app_key()
+        
+        if not wp_user or not wp_app_key:
+            print("DEBUG: wp_user or wp_app_key not configured, skipping Dokan update")
+            return
+        
+        dokan_payload = {
+            "post_author": str(vendor_id)
+        }
+        
+        response = requests.put(
+            dokan_url,
+            auth=(wp_user, wp_app_key),
+            json=dokan_payload,
+            headers={"Content-Type": "application/json"},
+        )
+        
+        if response.status_code in (200, 201):
+            print(f"✅ Dokan post_author güncellendi - Product ID: {wc_product_id}, Vendor ID: {vendor_id}")
+        else:
+            frappe.log_error(
+                title="Dokan API Error",
+                message=f"Status: {response.status_code}\nResponse: {response.text}\nProduct ID: {wc_product_id}, Vendor ID: {vendor_id}",
+            )
+            
+    except Exception as e:
+        frappe.log_error(
+            title="Dokan Update Error",
+            message=f"Item: {item_code}, WC Product ID: {wc_product_id}\n{frappe.get_traceback()}",
+        )
+
+
 def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, existing_wc_id=None):
     """Portal API'sine veri gönderir ve dönen ID'yi Item'a kaydeder"""
     try:
         url = f"{get_wo_url()}/wp-json/wc/v3/products"
-        dokanurl=f"{get_wo_url()}/wp-json/dokan/v1/products"
 
         # ID varsa güncelle, yoksa yeni oluştur
         if existing_wc_id:
@@ -470,6 +545,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                 headers={"Content-Type": "application/json"},
             )
             print(f"🔄 Portal ürün güncellendi - ID: {existing_wc_id}")
+            wc_product_id = existing_wc_id
         else:
             response = requests.post(
                 url,
@@ -478,6 +554,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                 headers={"Content-Type": "application/json"},
             )
             print("➕ Yeni Portal ürün oluşturuluyor",response)
+            wc_product_id = None
 
         if response.status_code in (200, 201):
             response_data = response.json()
@@ -494,6 +571,12 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
                         title="Item Portal ID Update Error",
                         message=f"Item: {item_code}, WC ID: {wc_product_id}, Error: {str(e)}"
                     )
+            
+            # Dokan API'sine post_author güncelleme isteği gönder 
+            # (sadece tam Item kaydı için, meta_data-only güncellemelerde çalıştırma)
+            is_meta_only_update = len(payload) == 1 and "meta_data" in payload
+            if wc_product_id and not is_meta_only_update:
+                update_dokan_post_author(item_code, wc_product_id)
             
             # frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
             print("\n\n\n DEBUG:2 wc_product_id", payload)
@@ -655,6 +738,10 @@ def sync_all_items_to_woocommerce():
                     # Yeni oluşturulduysa ID'yi kaydet
                     if wc_product_id and not existing_wc_id:
                         frappe.db.set_value("Item", item_dict.name, "custom_woocommerce_id", wc_product_id)
+                    
+                    # Dokan API'sine post_author güncelleme isteği gönder
+                    if wc_product_id:
+                        update_dokan_post_author(item_dict.name, wc_product_id)
                     
                     success_count += 1
                 else:

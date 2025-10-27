@@ -6,7 +6,9 @@ from culinary_portal.custom_hooks.create_item import (
     get_base_url,
     get_consumer_key,
     get_consumer_secret,
-    get_wo_url
+    get_wo_url,
+    get_wp_user,
+    get_wp_app_key
 )
 
 
@@ -198,7 +200,7 @@ def _fetch_all_dokan_stores():
         try:
             resp = requests.get(
                 url,
-                auth=(get_consumer_key(), get_consumer_secret()),
+                auth=(get_wp_user(), get_wp_app_key()),
                 params={"per_page": per_page, "page": page},
                 headers={"Content-Type": "application/json"},
                 timeout=40,
