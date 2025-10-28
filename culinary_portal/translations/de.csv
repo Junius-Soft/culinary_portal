@@ -1,0 +1,36 @@
+Sync Dokan Vendor,Dokan Vendor abgleichen
+WooCommerce,WooCommerce
+Sync Dokan Store for {0}?,Dokan Store für {0} abgleichen?
+Checking Dokan Stores...,Dokan Stores werden überprüft...
+Store Not Found,Store nicht gefunden
+Searched name,Gesuchter Name
+Total stores,Gesamtzahl der Stores
+Note: Store name must match exactly with Supplier Name.,Hinweis: Der Store-Name muss genau mit dem Lieferantennamen übereinstimmen.
+Error,Fehler
+API Error,API-Fehler
+Could not connect to Dokan API.,Verbindung zur Dokan-API konnte nicht hergestellt werden.
+Bulk Sync Dokan Vendors,Massen-Abgleich Dokan Vendors
+Please select at least one Supplier,Bitte wählen Sie mindestens einen Lieferanten aus
+Sync Dokan Vendors for {0} Suppliers?,Dokan Vendors für {0} Lieferanten abgleichen?
+Selected Suppliers,Ausgewählte Lieferanten
+Syncing Dokan Stores...,Dokan Stores werden abgeglichen...
+Bulk Sync Completed,Massen-Abgleich abgeschlossen
+Sync Results,Abgleich-Ergebnisse
+OK,OK
+Supplier name not found,Lieferantenname nicht gefunden
+Could not fetch Dokan Stores,Dokan Stores konnten nicht abgerufen werden
+Dokan Vendor found and matched,Dokan Vendor gefunden und abgeglichen
+No Dokan Store found with name '{0}',Kein Dokan Store mit dem Namen '{0}' gefunden
+Error: {0},Fehler: {0}
+Valid supplier list not found,Gültige Lieferantenliste nicht gefunden
+✅ Matched: {0}<br>⚠️ Not Found: {1}<br>❌ Error: {2},✅ Abgeglichen: {0}<br>⚠️ Nicht gefunden: {1}<br>❌ Fehler: {2}
+Not Found,Nicht gefunden
+First 10 not found,Erste 10 nicht gefunden
+Bulk sync error: {0},Massen-Abgleich-Fehler: {0}
+Product has no price,Produkt hat keinen Preis
+Product price not defined. Product will be added as Draft,Produktpreis nicht definiert. Produkt wird als Entwurf hinzugefügt
+Item successfully synchronized to WooCommerce,Artikel erfolgreich mit WooCommerce synchronisiert
+Item successfully synchronized to Portal,Artikel erfolgreich mit Portal synchronisiert
+Product successfully deleted from WooCommerce,Produkt erfolgreich aus WooCommerce gelöscht
+
+

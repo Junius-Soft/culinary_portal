@@ -43,9 +43,19 @@ Culinary Portal is a custom ERPNext application designed to integrate ERPNext wi
 - ✅ Force delete with cleanup
 - ✅ Error logging and handling
 
-### 5️⃣ **Multilingual Support**
-- ✅ English (default)
-- ✅ Turkish (tr) translations
+### 5️⃣ **Customer & B2B Group Management**
+- ✅ Automatic B2B Group creation in WordPress when Customer is saved
+- ✅ WordPress User creation webhook integration
+- ✅ Automatic Customer creation from WordPress User registration
+- ✅ B2B Group assignment to WordPress Users
+- ✅ Customer deletion syncs to WordPress (deletes User and B2B Group)
+- ✅ Background job processing for delete operations
+- ✅ Portal User ID tracking
+
+### 6️⃣ **Multilingual Support**
+- ✅ English (en) - default
+- ✅ Turkish (tr) - Türkçe
+- ✅ German (de) - Deutsch
 - ✅ Easy to add more languages
 
 ---
@@ -80,6 +90,18 @@ bench build --app culinary_portal
 4. **Restart services:**
 ```bash
 bench restart
+```
+
+5. **Set language (optional):**
+```bash
+# For Turkish
+bench --site [site-name] set-config lang tr
+
+# For German
+bench --site [site-name] set-config lang de
+
+# Build after language change
+bench build --app culinary_portal
 ```
 
 ---
@@ -190,6 +212,76 @@ Item Groups are automatically synced as WooCommerce Categories:
 
 ---
 
+### Customer & B2B Group Sync
+
+#### Automatic B2B Group Creation (ERPNext → WordPress)
+
+When a Customer is saved in ERPNext:
+1. System checks if `custom_b2b_group_id` exists
+2. If not, creates a new B2B King Group in WordPress:
+   - **Endpoint:** `POST /wp-json/wp/v2/b2bking_group`
+   - **Title:** Customer's `customer_name`
+   - **Status:** `publish`
+3. Saves B2B Group ID to `custom_b2b_group_id`
+4. If `custom_portal_user_id` exists, assigns group to WordPress User:
+   - **Endpoint:** `PUT /wp-json/wp/v2/users/{portal_user_id}`
+   - **Payload:** `{"meta": {"b2bking_customergroup": ["{group_id}"]}}`
+
+#### WordPress User Registration Webhook (WordPress → ERPNext)
+
+When a user registers in WordPress:
+1. **WordPress Webhook Configuration:**
+   - **Event:** `customer.created` (WooCommerce webhook)
+   - **Endpoint:** `{erp_url}/api/method/culinary_portal.culinary_portal.woocommerce_endpoint.user_created`
+   - **Method:** POST
+
+2. **ERPNext Processing:**
+   - Receives user data (id, username, email, first_name, last_name)
+   - Creates/Updates Customer:
+     - `customer_name`: `first_name + " " + last_name` (fallback: username)
+     - `woocommerce_identifier`: email
+     - `custom_portal_user_id`: WordPress user ID
+   - Creates B2B Group in WordPress
+   - Assigns B2B Group to WordPress User
+
+3. **Webhook Payload Example:**
+```json
+{
+  "id": 70,
+  "username": "johndoe",
+  "email": "john@example.com",
+  "first_name": "John",
+  "last_name": "Doe",
+  "role": "customer"
+}
+```
+
+#### Customer Deletion (ERPNext → WordPress)
+
+When a Customer is deleted in ERPNext:
+1. System enqueues background job to avoid blocking
+2. **Background Job:**
+   - Deletes WordPress User:
+     - **Endpoint:** `DELETE /wp-json/wp/v2/users/{portal_user_id}`
+     - **Params:** `force=true, reassign=1`
+   - Deletes B2B King Group:
+     - **Endpoint:** `DELETE /wp-json/wp/v2/b2bking_group/{b2b_group_id}`
+     - **Params:** `force=true`
+3. Customer is deleted immediately in ERPNext (no 500 error)
+4. WordPress cleanup happens in background
+
+#### API Functions
+
+**Create B2B Group manually:**
+```python
+frappe.call({
+    method: 'culinary_portal.custom_hooks.create_b2b_group.create_b2b_group_for_customer',
+    args: { customer_name: 'Customer Name' }
+})
+```
+
+---
+
 ## 🗂️ File Structure
 
 ```
@@ -199,15 +291,19 @@ culinary_portal/
 │   │   ├── create_item.py          # Item sync logic
 │   │   ├── delete_item.py          # Item deletion handler
 │   │   ├── sync_supplier.py        # Supplier & Dokan sync
-│   │   └── create_category.py      # Item Group sync
+│   │   ├── create_category.py      # Item Group sync
+│   │   └── create_b2b_group.py     # Customer & B2B Group sync
 │   ├── public/
 │   │   └── js/
 │   │       ├── item.js             # Item form customizations
 │   │       ├── supplier.js         # Supplier form button
 │   │       └── supplier_list.js    # Bulk sync button
 │   ├── translations/
-│   │   └── tr.csv                  # Turkish translations
+│   │   ├── tr.csv                  # Turkish translations
+│   │   ├── en.csv                  # English translations
+│   │   └── de.csv                  # German translations
 │   ├── hooks.py                    # App hooks configuration
+│   ├── woocommerce_endpoint.py     # Webhook endpoints
 │   └── ...
 └── README.md
 ```
@@ -234,6 +330,10 @@ culinary_portal/
 - `woocommerce_identifier` (Data) - Customer email for B2B King group matching
   - Used to fetch customer's B2B King group from WooCommerce
   - Each customer must have a Price List with the same name
+- `custom_portal_user_id` (Data/Int) - WordPress User ID
+  - Stores the WordPress user ID when customer is created from WordPress
+- `custom_b2b_group_id` (Data/Int) - B2B King Group ID
+  - Stores the WordPress B2B Group ID for this customer
 
 **Note:** These fields are automatically created via fixtures on app installation.
 
@@ -261,6 +361,10 @@ doc_events = {
         "on_update": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_sync",
         "after_rename": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_sync",
         "on_trash": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_on_trash",
+    },
+    "Customer": {
+        "on_update": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_b2b_group",
+        "on_trash": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_on_trash",
     }
 }
 ```
@@ -328,6 +432,15 @@ When an Item Price is updated:
 - `GET /wp-json/dokan/v1/stores` - Fetch all Dokan vendor stores
 - `PUT /wp-json/dokan/v1/products/{id}` - Update product post_author (vendor assignment)
 
+### WordPress REST API Endpoints Used
+- `POST /wp-json/wp/v2/b2bking_group` - Create B2B King Group
+- `DELETE /wp-json/wp/v2/b2bking_group/{id}` - Delete B2B King Group
+- `PUT /wp-json/wp/v2/users/{id}` - Update user (assign B2B Group)
+- `DELETE /wp-json/wp/v2/users/{id}` - Delete user
+
+### ERPNext Webhook Endpoints
+- `POST /api/method/culinary_portal.culinary_portal.woocommerce_endpoint.user_created` - WordPress user registration webhook
+
 ### Whitelisted Functions (ERPNext)
 
 #### 1. Sync Single Dokan Vendor
@@ -357,6 +470,14 @@ frappe.call({
 ```python
 frappe.call({
     method: 'culinary_portal.custom_hooks.create_item.collect_customer_b2bking_groups'
+})
+```
+
+#### 5. Create B2B Group for Customer
+```python
+frappe.call({
+    method: 'culinary_portal.custom_hooks.create_b2b_group.create_b2b_group_for_customer',
+    args: { customer_name: 'Customer Name' }
 })
 ```
 
@@ -545,7 +666,16 @@ bench build --app culinary_portal
 
 ### Supported Languages
 - 🇬🇧 English (en) - Default
-- 🇹🇷 Turkish (tr)
+- 🇹🇷 Turkish (tr) - Türkçe
+- 🇩🇪 German (de) - Deutsch
+
+### Translation Coverage
+All user-facing messages are translated:
+- ✅ Dokan Vendor sync messages
+- ✅ Product sync notifications
+- ✅ Error messages
+- ✅ Status alerts
+- ✅ Bulk operation results
 
 ---
 
@@ -595,13 +725,19 @@ Developed for Culinary Portal by the ERPNext development team.
 - ✅ Item deletion sync
 - ✅ B2B King pricing integration
 - ✅ Multi-category support
-- ✅ Turkish translation
+- ✅ Multilingual support (English, Turkish, German)
 - ✅ Custom UI buttons and workflows
 - ✅ Dokan post_author integration (auto vendor assignment)
 - ✅ Automatic Vendor ID sync when missing
 - ✅ Short description support for products
 - ✅ Performance-optimized Item Price updates
 - ✅ WordPress Application Password authentication for Dokan API
+- ✅ Customer & B2B Group synchronization
+- ✅ WordPress User registration webhook integration
+- ✅ Automatic Customer creation from WordPress User
+- ✅ B2B Group assignment to WordPress Users
+- ✅ Customer/User/B2B Group deletion sync
+- ✅ Background job processing for delete operations
 
 ---
 
