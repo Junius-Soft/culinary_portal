@@ -294,60 +294,68 @@ def handle_customer_on_trash(doc, method=None):
     Customer silindiğinde WordPress'te user ve B2B Group'u da siler.
     Hook tarafından çağrılır.
     """
-    # Enqueue kullanarak background'da çalıştır (500 hatasını önlemek için)
-    portal_user_id = getattr(doc, "custom_portal_user_id", None)
-    b2b_group_id = getattr(doc, "custom_b2b_group_id", None)
-    
-    if portal_user_id or b2b_group_id:
-        # Enqueue kullanarak arka planda sil
-        frappe.enqueue(
-            method='culinary_portal.custom_hooks.create_b2b_group.delete_customer_from_wordpress',
-            queue='default',
-            timeout=300,
-            portal_user_id=portal_user_id,
-            b2b_group_id=b2b_group_id,
-            customer_name=doc.name,
-        )
-        print(f"\n\n\n DEBUG: WordPress silme işlemi background'a alındı - Customer: {doc.name}")
-
-
-def delete_customer_from_wordpress(portal_user_id=None, b2b_group_id=None, customer_name=None):
-    """
-    WordPress'te user ve B2B Group'u siler (background job).
-    """
     try:
-        print(f"\n\n\n DEBUG: WordPress silme işlemi başladı - Customer: {customer_name}")
+        # Flag kontrolü - tekrar çalışmasını önle
+        if getattr(doc.flags, "wp_delete_sync_ran", False):
+            return
+        doc.flags.wp_delete_sync_ran = True
+        
+        # Diğer background job'ları devre dışı bırak
+        frappe.flags.in_import = True
+        
+        portal_user_id = getattr(doc, "custom_portal_user_id", None)
+        b2b_group_id = getattr(doc, "custom_b2b_group_id", None)
+        
+        if not portal_user_id and not b2b_group_id:
+            frappe.flags.in_import = False
+            return
+        
+        print(f"\n\n\n DEBUG: Customer siliniyor - {doc.name}")
         print(f"\n\n\n DEBUG: Portal User ID: {portal_user_id}, B2B Group ID: {b2b_group_id}")
         
         # WordPress User'ı sil
         if portal_user_id:
             print(f"\n\n\n DEBUG: WordPress User siliniyor (ID: {portal_user_id})...")
-            user_deleted = delete_wp_user(portal_user_id)
-            if user_deleted:
-                print(f"\n\n\n DEBUG: WordPress User başarıyla silindi")
-            else:
-                print(f"\n\n\n DEBUG: WordPress User silinemedi!")
-        else:
-            print(f"\n\n\n DEBUG: Portal User ID bulunamadı, User silinmedi")
+            try:
+                user_deleted = delete_wp_user(portal_user_id)
+                if user_deleted:
+                    print(f"\n\n\n DEBUG: WordPress User başarıyla silindi")
+                else:
+                    print(f"\n\n\n DEBUG: WordPress User silinemedi!")
+            except Exception as e:
+                print(f"\n\n\n DEBUG: WordPress User silme hatası: {str(e)}")
+                frappe.log_error(
+                    title="WordPress User Delete Error",
+                    message=f"Customer: {doc.name}\nError: {str(e)}",
+                )
         
         # B2B Group'u sil
         if b2b_group_id:
             print(f"\n\n\n DEBUG: B2B Group siliniyor (ID: {b2b_group_id})...")
-            group_deleted = delete_b2b_group(b2b_group_id)
-            if group_deleted:
-                print(f"\n\n\n DEBUG: B2B Group başarıyla silindi")
-            else:
-                print(f"\n\n\n DEBUG: B2B Group silinemedi!")
-        else:
-            print(f"\n\n\n DEBUG: B2B Group ID bulunamadı, Group silinmedi")
-            
-        print(f"\n\n\n DEBUG: WordPress silme işlemi tamamlandı")
+            try:
+                group_deleted = delete_b2b_group(b2b_group_id)
+                if group_deleted:
+                    print(f"\n\n\n DEBUG: B2B Group başarıyla silindi")
+                else:
+                    print(f"\n\n\n DEBUG: B2B Group silinemedi!")
+            except Exception as e:
+                print(f"\n\n\n DEBUG: B2B Group silme hatası: {str(e)}")
+                frappe.log_error(
+                    title="WordPress B2B Group Delete Error",
+                    message=f"Customer: {doc.name}\nError: {str(e)}",
+                )
         
-    except Exception:
+        # Flag'i geri al
+        frappe.flags.in_import = False
+            
+    except Exception as e:
+        print(f"\n\n\n DEBUG: Customer on_trash exception: {str(e)}")
         frappe.log_error(
-            title="WordPress Delete Customer Background Job Error",
+            title="Customer On Trash Error",
             message=frappe.get_traceback(),
         )
+        # Hata olsa bile flag'i geri al
+        frappe.flags.in_import = False
 
 
 @frappe.whitelist()
