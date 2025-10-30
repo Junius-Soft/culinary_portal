@@ -32,5 +32,19 @@ Product price not defined. Product will be added as Draft,Produktpreis nicht def
 Item successfully synchronized to WooCommerce,Artikel erfolgreich mit WooCommerce synchronisiert
 Item successfully synchronized to Portal,Artikel erfolgreich mit Portal synchronisiert
 Product successfully deleted from WooCommerce,Produkt erfolgreich aus WooCommerce gelöscht
+B2B Group created successfully: {0},B2B-Gruppe erfolgreich erstellt: {0}
+Error occurred while creating B2B Group,Fehler beim Erstellen der B2B-Gruppe
+An error occurred while creating B2B Group,Ein Fehler ist beim Erstellen der B2B-Gruppe aufgetreten
+Customer name not found,Kundenname nicht gefunden
+B2B Group created successfully,B2B-Gruppe erfolgreich erstellt
+Failed to create B2B Group,B2B-Gruppe konnte nicht erstellt werden
+Agreement category visibility updated successfully,Vereinbarungskategoriesichtbarkeit erfolgreich aktualisiert
+Category {0} updated successfully,Kategorie {0} erfolgreich aktualisiert
+Agreement categories sync completed,Vereinbarungskategorien-Synchronisation abgeschlossen
+No categories to update,Keine Kategorien zum Aktualisieren
+Customer B2B Group ID not found,Kunden B2B-Gruppen-ID nicht gefunden
+No item groups found in agreement items,Keine Artikelgruppen in Vereinbarungspositionen gefunden
+
+
 
 

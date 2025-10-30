@@ -186,7 +186,10 @@ doc_events = {
 	"Customer": {
 		"on_update": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_b2b_group",
 		"on_trash": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_on_trash",
-	}
+	},
+	"Agreement": {
+		"on_update": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
+	},
 }
 
 # Scheduled Tasks

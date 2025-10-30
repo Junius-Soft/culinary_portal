@@ -38,4 +38,10 @@ An error occurred while creating B2B Group,B2B Group oluşturulurken bir hata ol
 Customer name not found,Müşteri adı bulunamadı
 B2B Group created successfully,B2B Group başarıyla oluşturuldu
 Failed to create B2B Group,B2B Group oluşturulamadı
+Agreement category visibility updated successfully,Agreement kategori görünürlüğü başarıyla güncellendi
+Category {0} updated successfully,Kategori {0} başarıyla güncellendi
+Agreement categories sync completed,Agreement kategorileri senkronizasyonu tamamlandı
+No categories to update,Güncellenecek kategori yok
+Customer B2B Group ID not found,Müşteri B2B Group ID bulunamadı
+No item groups found in agreement items,Agreement öğelerinde ürün grubu bulunamadı
 

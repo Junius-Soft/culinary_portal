@@ -160,3 +160,112 @@ def user_created(*args, **kwargs):
 	else:
 		print("\n\n\n DEBUG-USER-ERROR: Request data bulunamadı!")
 		return Response(response=_("No data received"), status=HTTPStatus.BAD_REQUEST)
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def attach_pdf_to_customer(*args, **kwargs):
+	"""
+	PDF dosyasını URL'den indirip Customer'a attach eder
+	Body format:
+	{
+		"pdf_url": "https://example.com/file.pdf",
+		"signer_email": "customer@example.com",
+		"document_title": "Document Title"
+	}
+	"""
+	print("\n\n\n ========== ATTACH PDF TO CUSTOMER BAŞLADI ==========")
+	
+	if not frappe.request or not frappe.request.data:
+		print("\n\n\n DEBUG-PDF-ERROR: Request data bulunamadı!")
+		return Response(response=_("No data received"), status=HTTPStatus.BAD_REQUEST)
+	
+	try:
+		# Request body'yi parse et
+		data = json.loads(frappe.request.data)
+		print("\n\n\n DEBUG-PDF-1 Parsed Data:")
+		print(json.dumps(data, indent=2, ensure_ascii=False))
+		
+		pdf_url = data.get("pdf_url")
+		signer_email = data.get("signer_email")
+		document_title = data.get("document_title")
+		
+		# Gerekli alanları kontrol et
+		if not pdf_url or not signer_email or not document_title:
+			print("\n\n\n DEBUG-PDF-ERROR: Gerekli alanlar eksik!")
+			return Response(
+				response=_("Missing required fields: pdf_url, signer_email, document_title"),
+				status=HTTPStatus.BAD_REQUEST
+			)
+		
+		print(f"\n\n\n DEBUG-PDF-2 pdf_url: {pdf_url}")
+		print(f"\n\n\n DEBUG-PDF-3 signer_email: {signer_email}")
+		print(f"\n\n\n DEBUG-PDF-4 document_title: {document_title}")
+		
+		# Customer'ı bul
+		customer = frappe.db.get_value(
+			"Customer",
+			{"woocommerce_identifier": signer_email},
+			["name", "customer_name"],
+			as_dict=True
+		)
+		
+		if not customer:
+			print(f"\n\n\n DEBUG-PDF-ERROR: Customer bulunamadı: {signer_email}")
+			return Response(
+				response=_("Customer not found with woocommerce_identifier: {0}").format(signer_email),
+				status=HTTPStatus.NOT_FOUND
+			)
+		
+		print(f"\n\n\n DEBUG-PDF-5 Customer bulundu: {customer.name}")
+		
+		# URL'i link olarak attach et
+		print(f"\n\n\n DEBUG-PDF-6 URL link olarak attach ediliyor: {pdf_url}")
+		
+		file_name = f"{document_title}.pdf"
+		
+		# File doc oluştur ve validation'ı bypass et
+		file_doc = frappe.new_doc("File")
+		file_doc.file_name = file_name
+		file_doc.file_url = pdf_url
+		file_doc.attached_to_doctype = "Customer"
+		file_doc.attached_to_name = customer.name
+		file_doc.is_private = 0
+		file_doc.flags.ignore_permissions = True
+		file_doc.flags.ignore_validate = True
+		file_doc.flags.ignore_mandatory = True
+		file_doc.insert()
+		frappe.db.commit()
+		
+		print(f"\n\n\n DEBUG-PDF-7 Link kaydedildi: {file_doc.name}")
+		print("\n\n\n ========== ATTACH PDF TO CUSTOMER BİTTİ ==========")
+		
+		return Response(
+			response=json.dumps({
+				"success": True,
+				"message": _("PDF link successfully attached to customer"),
+				"customer": customer.name,
+				"file": file_doc.name,
+				"file_url": file_doc.file_url
+			}),
+			status=HTTPStatus.OK,
+			content_type="application/json"
+		)
+		
+	except json.JSONDecodeError as e:
+		print(f"\n\n\n DEBUG-PDF-ERROR JSON Parse Hatası: {str(e)}")
+		frappe.log_error(
+			title="Attach PDF JSON Parse Error",
+			message=f"Error: {str(e)}\nData: {frappe.request.data}"
+		)
+		return Response(response=_("Invalid JSON"), status=HTTPStatus.BAD_REQUEST)
+	
+	except Exception as e:
+		print(f"\n\n\n DEBUG-PDF-ERROR Exception: {str(e)}")
+		frappe.log_error(
+			title="Attach PDF Exception",
+			message=frappe.get_traceback()
+		)
+		return Response(
+			response=_("Internal Server Error: {0}").format(str(e)),
+			status=HTTPStatus.INTERNAL_SERVER_ERROR
+		)
