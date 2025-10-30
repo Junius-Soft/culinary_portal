@@ -52,7 +52,15 @@ Culinary Portal is a custom ERPNext application designed to integrate ERPNext wi
 - ✅ Background job processing for delete operations
 - ✅ Portal User ID tracking
 
-### 6️⃣ **Multilingual Support**
+### 6️⃣ **Agreement Category Visibility Management**
+- ✅ Automatic category visibility update when Agreement is saved
+- ✅ B2B Group-based category access control
+- ✅ Unique item group detection from agreement items
+- ✅ WordPress Category meta update for B2B King
+- ✅ Batch processing for multiple categories
+- ✅ Real-time sync on Agreement save
+
+### 7️⃣ **Multilingual Support**
 - ✅ English (en) - default
 - ✅ Turkish (tr) - Türkçe
 - ✅ German (de) - Deutsch
@@ -212,6 +220,58 @@ Item Groups are automatically synced as WooCommerce Categories:
 
 ---
 
+### Agreement Category Visibility Sync
+
+#### Automatic Category Visibility Update (Agreement → WordPress Categories)
+
+When an Agreement is saved in ERPNext:
+1. System extracts unique Item Groups from agreement_items child table
+2. Retrieves each Item Group's `custom_woocommerce_category_id`
+3. Gets Customer's `custom_b2b_group_id`
+4. Updates each category's meta data for B2B King visibility:
+   - **Endpoint:** `PUT /wp-json/wp/v2/product_cat/{category_id}`
+   - **Meta Field:** `b2bking_group_{b2b_group_id}`
+   - **Value:** `["1"]` (enables visibility for this B2B group)
+5. Categories become visible to the Customer's B2B Group in WordPress
+
+**What happens:**
+- Agreement with Supplier "ABC" is saved
+- Agreement items include products from "Ice" and "Backwaren" categories
+- Customer "XYZ Company" has B2B Group ID: 123
+- System updates categories:
+  - Ice category gets: `{"meta": {"b2bking_group_123": ["1"]}}`
+  - Backwaren category gets: `{"meta": {"b2bking_group_123": ["1"]}}`
+- Customer "XYZ Company" can now see these categories in WordPress
+
+**Console Output Example:**
+```
+=== Agreement Data ===
+Agreement: AGR-0001
+Customer: XYZ Company
+Customer B2B Group ID: 123
+Supplier: ABC Supplier
+WC Category IDs: ['73', '270']
+Unique Category Count: 2
+===========================
+
+✅ Category 73 updated successfully
+✅ Category 270 updated successfully
+
+=== Update Results ===
+Success: 2/2
+Errors: 0/2
+======================
+```
+
+**Benefits:**
+- ✅ Automatic category access control per customer
+- ✅ No manual WordPress configuration needed
+- ✅ Real-time updates on Agreement changes
+- ✅ Supports multiple categories per agreement
+- ✅ Unique detection prevents duplicate API calls
+
+---
+
 ### Customer & B2B Group Sync
 
 #### Automatic B2B Group Creation (ERPNext → WordPress)
@@ -292,7 +352,8 @@ culinary_portal/
 │   │   ├── delete_item.py          # Item deletion handler
 │   │   ├── sync_supplier.py        # Supplier & Dokan sync
 │   │   ├── create_category.py      # Item Group sync
-│   │   └── create_b2b_group.py     # Customer & B2B Group sync
+│   │   ├── create_b2b_group.py     # Customer & B2B Group sync
+│   │   └── handle_agreement.py     # Agreement category visibility sync
 │   ├── public/
 │   │   └── js/
 │   │       ├── item.js             # Item form customizations
@@ -365,6 +426,9 @@ doc_events = {
     "Customer": {
         "on_update": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_b2b_group",
         "on_trash": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_on_trash",
+    },
+    "Agreement": {
+        "on_update": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
     }
 }
 ```
@@ -437,6 +501,7 @@ When an Item Price is updated:
 - `DELETE /wp-json/wp/v2/b2bking_group/{id}` - Delete B2B King Group
 - `PUT /wp-json/wp/v2/users/{id}` - Update user (assign B2B Group)
 - `DELETE /wp-json/wp/v2/users/{id}` - Delete user
+- `PUT /wp-json/wp/v2/product_cat/{id}` - Update category meta (B2B King visibility)
 
 ### ERPNext Webhook Endpoints
 - `POST /api/method/culinary_portal.culinary_portal.woocommerce_endpoint.user_created` - WordPress user registration webhook
@@ -738,6 +803,9 @@ Developed for Culinary Portal by the ERPNext development team.
 - ✅ B2B Group assignment to WordPress Users
 - ✅ Customer/User/B2B Group deletion sync
 - ✅ Background job processing for delete operations
+- ✅ Agreement-based category visibility control
+- ✅ Automatic B2B King category meta update per Agreement
+- ✅ Unique item group detection for category sync
 
 ---
 
