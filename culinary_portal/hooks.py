@@ -188,7 +188,8 @@ doc_events = {
 		"on_trash": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_on_trash",
 	},
 	"Agreement": {
-		"on_update": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
+		"on_submit": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
+		"on_cancel": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_cancelled",
 	},
 }
 
