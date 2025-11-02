@@ -272,13 +272,14 @@ Errors: 0/2
 - ✅ Unique detection prevents duplicate API calls
 
 #### Agreement Cancellation (Disable Category Visibility)
-
-When an Agreement is cancelled in ERPNext:
-1. System extracts the same categories (Item Groups + Supplier + 303)
-2. Updates each category's meta data to disable visibility:
-   - **Meta Field:** `b2bking_group_{b2b_group_id}`
-   - **Value:** `["0"]` (disables visibility for this B2B group)
-3. Categories become hidden from the Customer's B2B Group in WordPress
+ 
+ When an Agreement is cancelled in ERPNext:
+ 1. System extracts specific categories (Item Groups + Supplier only)
+    - **Note:** Parent category (303) is NOT disabled on cancellation
+ 2. Updates each category's meta data to disable visibility:
+    - **Meta Field:** `b2bking_group_{b2b_group_id}`
+    - **Value:** `["0"]` (disables visibility for this B2B group)
+ 3. Categories become hidden from the Customer's B2B Group in WordPress
 
 **Console Output Example:**
 ```
@@ -287,24 +288,23 @@ Agreement: AGR-0001
 Customer: XYZ Company
 Customer B2B Group ID: 123
 Supplier: ABC Supplier
-WC Category IDs to Disable: ['73', '270', '303', '456']
-Unique Category Count: 4
+WC Category IDs to Disable: ['73', '270', '456']
+Unique Category Count: 3
 ===========================
 
 ✅ Category 73 disabled successfully
 ✅ Category 270 disabled successfully
-✅ Category 303 disabled successfully
 ✅ Category 456 disabled successfully
 
 === Disable Results ===
-Success: 4/4
-Errors: 0/4
+Success: 3/3
+Errors: 0/3
 ======================
 ```
 
 **Key Points:**
-- ✅ Symmetrical operation: Cancel reverses what Save did
-- ✅ Same categories are affected
+- ✅ Only agreement-specific categories are disabled (Item Groups + Supplier)
+- ✅ Parent category (303) remains enabled for other agreements
 - ✅ Value changes from `["1"]` (visible) to `["0"]` (hidden)
 - ✅ Immediate effect on WordPress store
 

@@ -150,9 +150,8 @@ def handle_agreement_cancelled(doc, method=None):
                         if wc_category_id:
                             unique_wc_category_ids.append(wc_category_id)
         
-        # Default parent category ID'sini ekle (303)
-        if '303' not in unique_wc_category_ids:
-            unique_wc_category_ids.append('303')
+        # NOT: Cancel işleminde 303 (parent category) eklenmez
+        # Sadece agreement'taki spesifik kategoriler kapatılır
         
         # Supplier'ın WC category ID'sini ekle
         if hasattr(doc, 'supplier') and doc.supplier:
