@@ -82,6 +82,7 @@ def user_created(*args, **kwargs):
 	WordPress'te user oluşturulduğunda tetiklenen webhook endpoint'i
 	"""
 	print("\n\n\n ========== USER CREATED WEBHOOK BAŞLADI ==========")
+	print("\n\n\n DEBUG-USER-DATA:", args)
 	
 	# Request data'yı göster
 	if frappe.request and frappe.request.data:
