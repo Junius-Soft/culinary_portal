@@ -16,6 +16,61 @@ from culinary_portal.culinary_portal.woocommerce_api import (
 )
 
 
+def extract_meta_value(meta_data, key):
+	"""
+	meta_data listesinden belirli bir key'in value'sunu çıkarır
+	"""
+	for item in meta_data:
+		if item.get("key") == key:
+			return item.get("value", "")
+	return ""
+
+
+def map_wordpress_data_to_customer(user_data, customer_doc):
+	"""
+	WordPress user data'sını Customer doc'a map eder
+	"""
+	# Ana alanlar
+	customer_doc.role = user_data.get("role", "")
+	customer_doc.username = user_data.get("username", "")
+	customer_doc.is_paying_customer = 1 if user_data.get("is_paying_customer") else 0
+	customer_doc.avatar_url = user_data.get("avatar_url", "")
+	
+	# Meta data alanları
+	meta_data = user_data.get("meta_data", [])
+	
+	customer_doc.entry_id = extract_meta_value(meta_data, "entry_id")
+	customer_doc.firmenvertreter_phone = extract_meta_value(meta_data, "firmenvertreter_phone")
+	customer_doc.company_name = extract_meta_value(meta_data, "company_name")
+	customer_doc.twitter = extract_meta_value(meta_data, "twitter")
+	customer_doc.facebook = extract_meta_value(meta_data, "facebook")
+	customer_doc.additional_profile_urls = extract_meta_value(meta_data, "additional_profile_urls")
+	customer_doc.wc_last_active = extract_meta_value(meta_data, "wc_last_active")
+	customer_doc.reference = extract_meta_value(meta_data, "reference")
+	customer_doc.user_phone = extract_meta_value(meta_data, "user_phone")
+	customer_doc.company_type = extract_meta_value(meta_data, "company_type")
+	customer_doc.steuernummer = extract_meta_value(meta_data, "steuernummer")
+	customer_doc.umsatzsteuer = extract_meta_value(meta_data, "umsatzsteuer")
+	customer_doc.address_street = extract_meta_value(meta_data, "address_street")
+	customer_doc.address_apartment = extract_meta_value(meta_data, "address_apartment")
+	customer_doc.address_city = extract_meta_value(meta_data, "address_city")
+	customer_doc.address_state = extract_meta_value(meta_data, "address_state")
+	customer_doc.address_zip = extract_meta_value(meta_data, "address_zip")
+	customer_doc.address_country = extract_meta_value(meta_data, "address_country")
+	customer_doc.firmenvertreter_name = extract_meta_value(meta_data, "firmenvertreter_name")
+	customer_doc.firmenvertreter_surname = extract_meta_value(meta_data, "firmenvertreter_surname")
+	customer_doc.firmenvertreter_email = extract_meta_value(meta_data, "firmenvertreter_email")
+	customer_doc.kontaktperson__name = extract_meta_value(meta_data, "kontaktperson__name")
+	customer_doc.kontaktperson__email = extract_meta_value(meta_data, "kontaktperson__email")
+	customer_doc.kontaktperson__phone = extract_meta_value(meta_data, "kontaktperson__phone")
+	customer_doc.iban = extract_meta_value(meta_data, "iban")
+	customer_doc.bic = extract_meta_value(meta_data, "bic")
+	customer_doc.ablaufdatum = extract_meta_value(meta_data, "ablaufdatum")
+	customer_doc.ausstellungsdatum = extract_meta_value(meta_data, "ausstellungsdatum")
+	
+	return customer_doc
+
+
 def validate_request() -> Tuple[bool, Optional[HTTPStatus], Optional[str]]:
 	# Get relevant WooCommerce Server
 	try:
@@ -82,7 +137,6 @@ def user_created(*args, **kwargs):
 	WordPress'te user oluşturulduğunda tetiklenen webhook endpoint'i
 	"""
 	print("\n\n\n ========== USER CREATED WEBHOOK BAŞLADI ==========")
-	print("\n\n\n DEBUG-USER-DATA:", args)
 	
 	# Request data'yı göster
 	if frappe.request and frappe.request.data:
@@ -123,11 +177,23 @@ def user_created(*args, **kwargs):
 				print(f"\n\n\n DEBUG-USER-5 Mevcut Customer bulundu: {existing_customer}")
 				# Mevcut customer'ı güncelle
 				customer_doc = frappe.get_doc("Customer", existing_customer)
+				
+				# B2B Group hook'unu atla (sadece yeni customer'da çalışsın)
+				customer_doc.flags.skip_b2b_group_hook = True
+				customer_doc.flags.ignore_permissions = True
+				customer_doc.flags.ignore_validate = True
+				customer_doc.flags.ignore_mandatory = True
+				customer_doc.flags.ignore_links = True
+				
 				customer_doc.customer_name = customer_name
 				customer_doc.custom_portal_user_id = user_id
+				
+				# Tüm WordPress data'sını map et
+				customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
+				
 				customer_doc.save(ignore_permissions=True)
 				frappe.db.commit()
-				print(f"\n\n\n DEBUG-USER-6 Customer güncellendi: {existing_customer}")
+				print(f"\n\n\n DEBUG-USER-6 Customer güncellendi (B2B hook atlandı): {existing_customer}")
 			else:
 				# Yeni Customer oluştur
 				print("\n\n\n DEBUG-USER-7 Yeni Customer oluşturuluyor...")
@@ -135,11 +201,22 @@ def user_created(*args, **kwargs):
 					"doctype": "Customer",
 					"customer_name": customer_name,
 					"woocommerce_identifier": email,
-					"custom_portal_user_id": user_id,					
+					"custom_portal_user_id": user_id,	
+					"disabled":1,
 				})
+				
+				# Tüm WordPress data'sını map et
+				customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
+				
+				# YENİ customer için B2B Group hook'u ÇALIŞACAK (skip flag yok)
+				customer_doc.flags.ignore_permissions = True
+				customer_doc.flags.ignore_validate = True
+				customer_doc.flags.ignore_mandatory = True
+				customer_doc.flags.ignore_links = True
+				
 				customer_doc.insert(ignore_permissions=True)
 				frappe.db.commit()
-				print(f"\n\n\n DEBUG-USER-8 Yeni Customer oluşturuldu: {customer_doc.name}")
+				print(f"\n\n\n DEBUG-USER-8 Yeni Customer oluşturuldu (B2B hook çalıştı): {customer_doc.name}")
 			
 			print("\n\n\n ========== USER CREATED WEBHOOK BİTTİ ==========")
 			return Response(status=HTTPStatus.OK)
@@ -160,6 +237,100 @@ def user_created(*args, **kwargs):
 			return Response(response=_("Internal Server Error"), status=HTTPStatus.INTERNAL_SERVER_ERROR)
 	else:
 		print("\n\n\n DEBUG-USER-ERROR: Request data bulunamadı!")
+		return Response(response=_("No data received"), status=HTTPStatus.BAD_REQUEST)
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def user_updated(*args, **kwargs):
+	"""
+	WordPress'te user güncellendiğinde tetiklenen webhook endpoint'i
+	"""
+	print("\n\n\n ========== USER UPDATED WEBHOOK BAŞLADI ==========")
+	
+	# Request data'yı göster
+	if frappe.request and frappe.request.data:
+		print("\n\n\n DEBUG-UPDATE-2 Raw Request Data:", frappe.request.data)
+		
+		try:
+			user_data = json.loads(frappe.request.data)
+			print("\n\n\n DEBUG-UPDATE-3 Parsed User Data (JSON):")
+			print(json.dumps(user_data, indent=2, ensure_ascii=False))
+		except ValueError:
+			# WordPress webhook'un ilk test isteği 'webhook_id=value' formatında gelir (JSON değil)
+			print("\n\n\n DEBUG-UPDATE-3.1 İlk test isteği (webhook_id), başarılı kabul edildi")
+			return Response(status=HTTPStatus.OK)
+		
+		try:
+			
+			# Gerekli alanları al
+			username = user_data.get("username", "")
+			email = user_data.get("email", "")
+			user_id = user_data.get("id")
+			first_name = user_data.get("first_name", "").strip()
+			last_name = user_data.get("last_name", "").strip()
+			
+			# Customer name oluştur: first_name + last_name veya username
+			if first_name and last_name:
+				customer_name = f"{first_name} {last_name}"
+			elif first_name:
+				customer_name = first_name
+			elif last_name:
+				customer_name = last_name
+			else:
+				customer_name = username
+			
+			print(f"\n\n\n DEBUG-UPDATE-4 Mapping - customer_name: {customer_name}, email: {email}, id: {user_id}")
+			
+			if not email:
+				print("\n\n\n DEBUG-UPDATE-ERROR: Email eksik!")
+				return Response(response=_("Missing required field: email"), status=HTTPStatus.BAD_REQUEST)
+			
+			# Email ile mevcut Customer kontrolü
+			existing_customer = frappe.db.exists("Customer", {"woocommerce_identifier": email})
+			
+			if existing_customer:
+				print(f"\n\n\n DEBUG-UPDATE-5 Mevcut Customer bulundu: {existing_customer}")
+				
+				# Customer doc'u al
+				customer_doc = frappe.get_doc("Customer", existing_customer)
+				
+				# Update'lerde B2B Group hook'unu atla
+				customer_doc.flags.skip_b2b_group_hook = True
+				customer_doc.flags.ignore_permissions = True
+				customer_doc.flags.ignore_validate = True
+				customer_doc.flags.ignore_mandatory = True
+				customer_doc.flags.ignore_links = True
+				
+				# Alanları güncelle
+				customer_doc.customer_name = customer_name
+				customer_doc.custom_portal_user_id = user_id
+				
+				# Tüm WordPress data'sını map et
+				customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
+				
+				# Kaydet (skip_b2b_group_hook flag'i sayesinde B2B Group hook'u atlanacak)
+				customer_doc.save(ignore_permissions=True)
+				frappe.db.commit()
+				print(f"\n\n\n DEBUG-UPDATE-6 Customer güncellendi (B2B hook atlandı): {existing_customer}")
+				
+				print("\n\n\n ========== USER UPDATED WEBHOOK BİTTİ ==========")
+				return Response(status=HTTPStatus.OK)
+			else:
+				# Customer bulunamadı
+				print(f"\n\n\n DEBUG-UPDATE-ERROR: Customer bulunamadı - email: {email}")
+				return Response(
+					response=_("Customer not found with email: {0}").format(email),
+					status=HTTPStatus.NOT_FOUND
+				)
+		except Exception as e:
+			print(f"\n\n\n DEBUG-UPDATE-ERROR Exception: {str(e)}")
+			frappe.log_error(
+				title="User Update Webhook Exception",
+				message=frappe.get_traceback()
+			)
+			return Response(response=_("Internal Server Error"), status=HTTPStatus.INTERNAL_SERVER_ERROR)
+	else:
+		print("\n\n\n DEBUG-UPDATE-ERROR: Request data bulunamadı!")
 		return Response(response=_("No data received"), status=HTTPStatus.BAD_REQUEST)
 
 

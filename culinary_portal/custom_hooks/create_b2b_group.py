@@ -122,6 +122,7 @@ def update_user_b2b_group(portal_user_id: int, b2b_group_id: int) -> bool:
         # Gönderilecek payload
         payload = {
             "meta": {
+                "b2bking_b2buser":"yes",
                 "b2bking_customergroup": [str(b2b_group_id)]
             }
         }
@@ -237,6 +238,11 @@ def handle_customer_b2b_group(doc, method=None):
     Hook tarafından çağrılır.
     """
     try:
+        # WordPress webhook update'lerinde atla (sadece create'de çalışsın)
+        if getattr(doc.flags, "skip_b2b_group_hook", False):
+            print(f"\n\n\n DEBUG: skip_b2b_group_hook flag'i var, B2B Group hook atlanıyor")
+            return
+        
         # Flag kontrolü - tekrar çalışmasını önle
         if getattr(doc.flags, "culinary_b2b_group_sync_ran", False):
             return
@@ -300,14 +306,18 @@ def handle_customer_on_trash(doc, method=None):
             return
         doc.flags.wp_delete_sync_ran = True
         
-        # Diğer background job'ları devre dışı bırak
+        # TÜM background job'ları ve enqueue işlemlerini devre dışı bırak
         frappe.flags.in_import = True
+        frappe.flags.in_test = True
+        frappe.flags.enqueue_after_commit = []
         
         portal_user_id = getattr(doc, "custom_portal_user_id", None)
         b2b_group_id = getattr(doc, "custom_b2b_group_id", None)
         
         if not portal_user_id and not b2b_group_id:
+            # Flag'leri geri al
             frappe.flags.in_import = False
+            frappe.flags.in_test = False
             return
         
         print(f"\n\n\n DEBUG: Customer siliniyor - {doc.name}")
@@ -345,8 +355,9 @@ def handle_customer_on_trash(doc, method=None):
                     message=f"Customer: {doc.name}\nError: {str(e)}",
                 )
         
-        # Flag'i geri al
+        # Flag'leri geri al
         frappe.flags.in_import = False
+        frappe.flags.in_test = False
             
     except Exception as e:
         print(f"\n\n\n DEBUG: Customer on_trash exception: {str(e)}")
@@ -354,8 +365,9 @@ def handle_customer_on_trash(doc, method=None):
             title="Customer On Trash Error",
             message=frappe.get_traceback(),
         )
-        # Hata olsa bile flag'i geri al
+        # Hata olsa bile flag'leri geri al
         frappe.flags.in_import = False
+        frappe.flags.in_test = False
 
 
 @frappe.whitelist()
