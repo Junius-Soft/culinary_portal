@@ -71,6 +71,98 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	return customer_doc
 
 
+def create_or_update_customer(user_data, is_new_customer=False):
+	"""
+	WordPress user data'sından Customer oluşturur veya günceller
+	
+	Args:
+		user_data: WordPress'ten gelen user data
+		is_new_customer: True ise B2B Group hook'u çalışır
+	
+	Returns:
+		Tuple: (customer_name, success_message)
+	"""
+	# Gerekli alanları al
+	username = user_data.get("username", "")
+	email = user_data.get("email", "")
+	user_id = user_data.get("id")
+	first_name = user_data.get("first_name", "").strip()
+	last_name = user_data.get("last_name", "").strip()
+	
+	# Customer name oluştur: first_name + last_name veya username
+	if first_name and last_name:
+		customer_name = f"{first_name} {last_name}"
+	elif first_name:
+		customer_name = first_name
+	elif last_name:
+		customer_name = last_name
+	else:
+		customer_name = username
+	
+	print(f"\n\n\n DEBUG-COMMON-1 customer_name: {customer_name}, email: {email}, id: {user_id}")
+	
+	if not customer_name or not email:
+		raise ValueError("Customer name veya email eksik!")
+	
+	# Email ile mevcut Customer kontrolü
+	existing_customer = frappe.db.exists("Customer", {"woocommerce_identifier": email})
+	
+	if existing_customer:
+		print(f"\n\n\n DEBUG-COMMON-2 Mevcut Customer bulundu: {existing_customer}")
+		# Mevcut customer'ı güncelle
+		customer_doc = frappe.get_doc("Customer", existing_customer)
+		
+		# B2B Group hook'unu atla (sadece yeni customer'da çalışsın)
+		customer_doc.flags.skip_b2b_group_hook = True
+		customer_doc.flags.ignore_permissions = True
+		customer_doc.flags.ignore_validate = True
+		customer_doc.flags.ignore_mandatory = True
+		customer_doc.flags.ignore_links = True
+		
+		customer_doc.customer_name = customer_name
+		customer_doc.custom_portal_user_id = user_id
+		
+		# Tüm WordPress data'sını map et
+		customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
+		
+		customer_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+		print(f"\n\n\n DEBUG-COMMON-3 Customer güncellendi: {existing_customer}")
+		
+		return existing_customer, "güncellendi"
+	else:
+		# Yeni Customer oluştur
+		print("\n\n\n DEBUG-COMMON-4 Yeni Customer oluşturuluyor...")
+		customer_doc = frappe.get_doc({
+			"doctype": "Customer",
+			"customer_name": customer_name,
+			"woocommerce_identifier": email,
+			"custom_portal_user_id": user_id,					
+		})
+		
+		# Tüm WordPress data'sını map et
+		customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
+		
+		# Flag'leri ayarla
+		customer_doc.flags.ignore_permissions = True
+		customer_doc.flags.ignore_validate = True
+		customer_doc.flags.ignore_mandatory = True
+		customer_doc.flags.ignore_links = True
+		
+		# YENİ customer için B2B Group hook'u çalışacak mı?
+		if not is_new_customer:
+			customer_doc.flags.skip_b2b_group_hook = True
+			print("\n\n\n DEBUG-COMMON-5 B2B hook atlanacak")
+		else:
+			print("\n\n\n DEBUG-COMMON-5 B2B hook çalışacak")
+		
+		customer_doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		print(f"\n\n\n DEBUG-COMMON-6 Yeni Customer oluşturuldu: {customer_doc.name}")
+		
+		return customer_doc.name, "oluşturuldu"
+
+
 def validate_request() -> Tuple[bool, Optional[HTTPStatus], Optional[str]]:
 	# Get relevant WooCommerce Server
 	try:
@@ -147,76 +239,9 @@ def user_created(*args, **kwargs):
 			print("\n\n\n DEBUG-USER-3 Parsed User Data (JSON):")
 			print(json.dumps(user_data, indent=2, ensure_ascii=False))
 			
-			# Gerekli alanları al
-			username = user_data.get("username", "")
-			email = user_data.get("email", "")
-			user_id = user_data.get("id")
-			first_name = user_data.get("first_name", "").strip()
-			last_name = user_data.get("last_name", "").strip()
-			
-			# Customer name oluştur: first_name + last_name veya username
-			if first_name and last_name:
-				customer_name = f"{first_name} {last_name}"
-			elif first_name:
-				customer_name = first_name
-			elif last_name:
-				customer_name = last_name
-			else:
-				customer_name = username
-			
-			print(f"\n\n\n DEBUG-USER-4 Mapping - customer_name: {customer_name}, email: {email}, id: {user_id}")
-			
-			if not customer_name or not email:
-				print("\n\n\n DEBUG-USER-ERROR: Customer name veya email eksik!")
-				return Response(response=_("Missing required fields"), status=HTTPStatus.BAD_REQUEST)
-			
-			# Email ile mevcut Customer kontrolü
-			existing_customer = frappe.db.exists("Customer", {"woocommerce_identifier": email})
-			
-			if existing_customer:
-				print(f"\n\n\n DEBUG-USER-5 Mevcut Customer bulundu: {existing_customer}")
-				# Mevcut customer'ı güncelle
-				customer_doc = frappe.get_doc("Customer", existing_customer)
-				
-				# B2B Group hook'unu atla (sadece yeni customer'da çalışsın)
-				customer_doc.flags.skip_b2b_group_hook = True
-				customer_doc.flags.ignore_permissions = True
-				customer_doc.flags.ignore_validate = True
-				customer_doc.flags.ignore_mandatory = True
-				customer_doc.flags.ignore_links = True
-				
-				customer_doc.customer_name = customer_name
-				customer_doc.custom_portal_user_id = user_id
-				
-				# Tüm WordPress data'sını map et
-				customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
-				
-				customer_doc.save(ignore_permissions=True)
-				frappe.db.commit()
-				print(f"\n\n\n DEBUG-USER-6 Customer güncellendi (B2B hook atlandı): {existing_customer}")
-			else:
-				# Yeni Customer oluştur
-				print("\n\n\n DEBUG-USER-7 Yeni Customer oluşturuluyor...")
-				customer_doc = frappe.get_doc({
-					"doctype": "Customer",
-					"customer_name": customer_name,
-					"woocommerce_identifier": email,
-					"custom_portal_user_id": user_id,	
-					"disabled":1,
-				})
-				
-				# Tüm WordPress data'sını map et
-				customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
-				
-				# YENİ customer için B2B Group hook'u ÇALIŞACAK (skip flag yok)
-				customer_doc.flags.ignore_permissions = True
-				customer_doc.flags.ignore_validate = True
-				customer_doc.flags.ignore_mandatory = True
-				customer_doc.flags.ignore_links = True
-				
-				customer_doc.insert(ignore_permissions=True)
-				frappe.db.commit()
-				print(f"\n\n\n DEBUG-USER-8 Yeni Customer oluşturuldu (B2B hook çalıştı): {customer_doc.name}")
+			# Ortak fonksiyon ile Customer oluştur/güncelle (is_new_customer=True → B2B hook çalışacak)
+			customer_name, action = create_or_update_customer(user_data, is_new_customer=True)
+			print(f"\n\n\n DEBUG-USER-FINAL Customer {action}: {customer_name}")
 			
 			print("\n\n\n ========== USER CREATED WEBHOOK BİTTİ ==========")
 			return Response(status=HTTPStatus.OK)
@@ -261,67 +286,13 @@ def user_updated(*args, **kwargs):
 			return Response(status=HTTPStatus.OK)
 		
 		try:
+			# Ortak fonksiyon ile Customer oluştur/güncelle (is_new_customer=False → B2B hook atlanacak)
+			# Eğer Customer yoksa oluşturulacak (user_created gibi)
+			customer_name, action = create_or_update_customer(user_data, is_new_customer=False)
+			print(f"\n\n\n DEBUG-UPDATE-FINAL Customer {action}: {customer_name}")
 			
-			# Gerekli alanları al
-			username = user_data.get("username", "")
-			email = user_data.get("email", "")
-			user_id = user_data.get("id")
-			first_name = user_data.get("first_name", "").strip()
-			last_name = user_data.get("last_name", "").strip()
-			
-			# Customer name oluştur: first_name + last_name veya username
-			if first_name and last_name:
-				customer_name = f"{first_name} {last_name}"
-			elif first_name:
-				customer_name = first_name
-			elif last_name:
-				customer_name = last_name
-			else:
-				customer_name = username
-			
-			print(f"\n\n\n DEBUG-UPDATE-4 Mapping - customer_name: {customer_name}, email: {email}, id: {user_id}")
-			
-			if not email:
-				print("\n\n\n DEBUG-UPDATE-ERROR: Email eksik!")
-				return Response(response=_("Missing required field: email"), status=HTTPStatus.BAD_REQUEST)
-			
-			# Email ile mevcut Customer kontrolü
-			existing_customer = frappe.db.exists("Customer", {"woocommerce_identifier": email})
-			
-			if existing_customer:
-				print(f"\n\n\n DEBUG-UPDATE-5 Mevcut Customer bulundu: {existing_customer}")
-				
-				# Customer doc'u al
-				customer_doc = frappe.get_doc("Customer", existing_customer)
-				
-				# Update'lerde B2B Group hook'unu atla
-				customer_doc.flags.skip_b2b_group_hook = True
-				customer_doc.flags.ignore_permissions = True
-				customer_doc.flags.ignore_validate = True
-				customer_doc.flags.ignore_mandatory = True
-				customer_doc.flags.ignore_links = True
-				
-				# Alanları güncelle
-				customer_doc.customer_name = customer_name
-				customer_doc.custom_portal_user_id = user_id
-				
-				# Tüm WordPress data'sını map et
-				customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
-				
-				# Kaydet (skip_b2b_group_hook flag'i sayesinde B2B Group hook'u atlanacak)
-				customer_doc.save(ignore_permissions=True)
-				frappe.db.commit()
-				print(f"\n\n\n DEBUG-UPDATE-6 Customer güncellendi (B2B hook atlandı): {existing_customer}")
-				
-				print("\n\n\n ========== USER UPDATED WEBHOOK BİTTİ ==========")
-				return Response(status=HTTPStatus.OK)
-			else:
-				# Customer bulunamadı
-				print(f"\n\n\n DEBUG-UPDATE-ERROR: Customer bulunamadı - email: {email}")
-				return Response(
-					response=_("Customer not found with email: {0}").format(email),
-					status=HTTPStatus.NOT_FOUND
-				)
+			print("\n\n\n ========== USER UPDATED WEBHOOK BİTTİ ==========")
+			return Response(status=HTTPStatus.OK)
 		except Exception as e:
 			print(f"\n\n\n DEBUG-UPDATE-ERROR Exception: {str(e)}")
 			frappe.log_error(
