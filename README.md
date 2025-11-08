@@ -29,7 +29,7 @@ Culinary Portal is a custom ERPNext application designed to integrate ERPNext wi
 - ✅ Dokan Vendor synchronization
 - ✅ Single Supplier → Dokan Vendor matching
 - ✅ Bulk Supplier → Dokan Vendor sync
-- ✅ Category hierarchy support (parent: 303)
+- ✅ Category hierarchy support (parent: 374)
 - ✅ Image and metadata sync
 
 ### 3️⃣ **Item Group Management**
@@ -275,7 +275,7 @@ Errors: 0/2
  
  When an Agreement is cancelled in ERPNext:
  1. System extracts specific categories (Item Groups + Supplier only)
-    - **Note:** Parent category (303) is NOT disabled on cancellation
+    - **Note:** Parent category (374) is NOT disabled on cancellation
  2. Updates each category's meta data to disable visibility:
     - **Meta Field:** `b2bking_group_{b2b_group_id}`
     - **Value:** `["0"]` (disables visibility for this B2B group)
@@ -304,7 +304,7 @@ Errors: 0/3
 
 **Key Points:**
 - ✅ Only agreement-specific categories are disabled (Item Groups + Supplier)
-- ✅ Parent category (303) remains enabled for other agreements
+- ✅ Parent category (374) remains enabled for other agreements
 - ✅ Value changes from `["1"]` (visible) to `["0"]` (hidden)
 - ✅ Immediate effect on WordPress store
 
@@ -671,14 +671,14 @@ Products are assigned to multiple categories:
 
 1. **Item Group Category:** Primary category from Item's Item Group
 2. **Supplier Category:** Secondary category from Item's Supplier(s)
-3. **Parent Category (303):** All categories have parent ID 303 (default)
+3. **Parent Category (374):** All categories have parent ID 374 (default)
 
 **Example:**
 ```json
 "categories": [
   {"id": 150},          // Item Group category
-  {"id": 200, "parent": 303},  // Supplier category
-  {"id": 303}           // Parent category
+  {"id": 200, "parent": 374},  // Supplier category
+  {"id": 374}           // Parent category
 ]
 ```
 
@@ -699,7 +699,7 @@ Products are assigned to multiple categories:
 - ✅ Check Dokan API endpoint: `/wp-json/dokan/v1/stores`
 
 #### 3. **Category Not Created**
-- ✅ Check parent category ID (default: 303)
+- ✅ Check parent category ID (default: 374)
 - ✅ Verify WooCommerce API credentials
 - ✅ Check error logs in ERPNext
 

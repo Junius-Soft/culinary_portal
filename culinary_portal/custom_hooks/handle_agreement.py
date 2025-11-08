@@ -33,9 +33,9 @@ def handle_agreement_saved(doc, method=None):
                         if wc_category_id:
                             unique_wc_category_ids.append(wc_category_id)
         
-        # Default parent category ID'sini ekle (303)
-        if '303' not in unique_wc_category_ids:
-            unique_wc_category_ids.append('303')
+        # Default parent category ID'sini ekle (374)
+        if '374' not in unique_wc_category_ids:
+            unique_wc_category_ids.append('374')
         
         # Supplier'ın WC category ID'sini ekle
         if hasattr(doc, 'supplier') and doc.supplier:
@@ -150,7 +150,7 @@ def handle_agreement_cancelled(doc, method=None):
                         if wc_category_id:
                             unique_wc_category_ids.append(wc_category_id)
         
-        # NOT: Cancel işleminde 303 (parent category) eklenmez
+        # NOT: Cancel işleminde 374 (parent category) eklenmez
         # Sadece agreement'taki spesifik kategoriler kapatılır
         
         # Supplier'ın WC category ID'sini ekle

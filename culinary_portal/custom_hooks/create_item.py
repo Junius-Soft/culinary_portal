@@ -400,8 +400,8 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
         categories.append({"id": int(category_id)})
         print(f"DEBUG: Added Item Group category ID: {category_id}")
     
-    # 2. Ana kategori (303) - her zaman eklenir
-    categories.append({"id": 303})
+    # 2. Ana kategori (374) - her zaman eklenir
+    categories.append({"id": 374})
     print(f"DEBUG: Categories after Item Group: {categories}")
 
     # regular_price tercihi: override > item.standard_rate
@@ -437,7 +437,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
                     # Aynı kategori zaten ekli mi kontrol et
                     existing_ids = [c.get("id") for c in categories]
                     if supplier_cat_int not in existing_ids:
-                        categories.append({"id": supplier_cat_int, "parent": 303})
+                        categories.append({"id": supplier_cat_int, "parent": 374})
                         print(f"DEBUG: Added Supplier category ID: {supplier_cat_int} for supplier: {supplier_name}")
         
         print(f"\n\n\n DEBUG:1 Final categories", categories)

@@ -133,7 +133,7 @@ def handle_supplier_sync(doc, method=None, old=None, new=None, merge: bool = Fal
         name = getattr(doc, "supplier_name", None) or getattr(doc, "name", None) or ""
         image_src = _build_image_src(getattr(doc, "image", None))
         slug = getattr(doc, "custom_woocommerce_slug", None) or (name.lower().replace(" ", "-") if name else None)
-        parent_id = 303  # Varsayılan üst kategori
+        parent_id = 374  # Varsayılan üst kategori
         print(f"\n\n\n DEBUG:1 exixting Category id: {existing_wc_id}")
 
         if existing_wc_id:
