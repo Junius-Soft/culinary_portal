@@ -382,12 +382,12 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
     """ERPNext Item verisini Portal formatına dönüştürür"""
     print("\n\n\n DEBUG:1 DOC NAME", doc)
     image_path = item_data.get("image", "") or ""
-    images = []
+    images = None  # Private ise payload'a eklenmeyecek
     if image_path:
         # Private files kontrolü - WooCommerce erişemez, atla
         if "/private/" in image_path:
             print(f"⚠️ Private file atlandı (WooCommerce erişemez): {image_path}")
-            images = []
+            images = None  # payload'a images eklenmeyecek
         else:
             # Public file - WooCommerce'e gönder
             images = [
@@ -459,9 +459,13 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
             "stock_status": "instock",
             "status": status_value,
             "categories": categories,
-            "images": images,
             "meta_data": meta_data or [],
         }
+        
+        # Images sadece public file varsa ekle
+        if images is not None:
+            wc_data["images"] = images
+            
         return wc_data
     else:
         wc_data = {
