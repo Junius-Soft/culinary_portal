@@ -8,7 +8,8 @@ from culinary_portal.custom_hooks.create_item import (
     get_consumer_secret,
     get_wo_url,
     get_wp_user,
-    get_wp_app_key
+    get_wp_app_key,
+    get_vendor_category_id
 )
 
 
@@ -133,8 +134,14 @@ def handle_supplier_sync(doc, method=None, old=None, new=None, merge: bool = Fal
         name = getattr(doc, "supplier_name", None) or getattr(doc, "name", None) or ""
         image_src = _build_image_src(getattr(doc, "image", None))
         slug = getattr(doc, "custom_woocommerce_slug", None) or (name.lower().replace(" ", "-") if name else None)
-        parent_id = 374  # Varsayılan üst kategori
+        
+        # Vendor kategori ID'sini dinamik olarak al
+        parent_id = get_vendor_category_id()
+        if not parent_id:
+            frappe.throw(frappe._("Lütfen 'Vendor' ürün grubunu oluşturun ve WooCommerce kategori ID'sini tanımlayın"))
+        
         print(f"\n\n\n DEBUG:1 exixting Category id: {existing_wc_id}")
+        print(f"\n\n\n DEBUG:1 Vendor parent_id: {parent_id}")
 
         if existing_wc_id:
             updated = _update_wc_category(

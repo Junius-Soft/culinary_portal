@@ -37,6 +37,39 @@ def get_wp_app_key():
     site_conf = getattr(frappe.local, "conf", {}) or {}
     return site_conf.get("wp_app_key") or ""
 
+
+def get_vendor_category_id() -> int | None:
+    """Vendor Item Group'unun WooCommerce kategori ID'sini döndürür"""
+    try:
+        vendor_cat_id = frappe.db.get_value(
+            "Item Group",
+            {"name": "Vendor"},
+            "custom_woocommerce_category_id"
+        )
+        
+        if not vendor_cat_id:
+            frappe.msgprint(
+                frappe._("'Vendor' isimli ürün grubu bulunamadı veya WooCommerce kategori ID'si tanımlı değil. Lütfen 'Vendor' ürün grubunu oluşturun."),
+                alert=True,
+                indicator="red"
+            )
+            return None
+            
+        return int(vendor_cat_id) if vendor_cat_id else None
+        
+    except Exception as e:
+        frappe.log_error(
+            title="Vendor Category ID Error",
+            message=f"Error: {str(e)}\n{frappe.get_traceback()}"
+        )
+        frappe.msgprint(
+            frappe._("'Vendor' ürün grubunu oluşturun"),
+            alert=True,
+            indicator="red"
+        )
+        return None
+
+
 # def get_consumer_key():
 #     woocommerce_server = frappe.get_value("WooCommerce Server", "www.temayolu.com", "api_consumer_key")
 
@@ -382,12 +415,12 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
     """ERPNext Item verisini Portal formatına dönüştürür"""
     print("\n\n\n DEBUG:1 DOC NAME", doc)
     image_path = item_data.get("image", "") or ""
-    images = None  # Private ise payload'a eklenmeyecek
+    images = []  # Default boş array
     if image_path:
-        # Private files kontrolü - WooCommerce erişemez, atla
+        # Private files kontrolü - WooCommerce erişemez
         if "/private/" in image_path:
-            print(f"⚠️ Private file atlandı (WooCommerce erişemez): {image_path}")
-            images = None  # payload'a images eklenmeyecek
+            print(f"⚠️ Private file atlandı (WooCommerce'deki eski görsel silinecek): {image_path}")
+            images = []  # Boş array göndererek WooCommerce'deki görseli sil
         else:
             # Public file - WooCommerce'e gönder
             images = [
@@ -401,14 +434,19 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
     # Categories başlangıcı - Item Group categories'ini ekle
     categories = []
     
-    # 1. Item Group kategori ID'sini ekle (ana kategori olarak)
+    # 1. Vendor ana kategorisi - dinamik olarak al
+    vendor_cat_id = get_vendor_category_id()
+    if not vendor_cat_id:
+        # Vendor kategori ID yoksa işlemi durdur
+        frappe.throw(frappe._("Lütfen 'Vendor' ürün grubunu oluşturun ve WooCommerce kategori ID'sini tanımlayın"))
+    
+    categories.append({"id": vendor_cat_id})
+    print(f"DEBUG: Added Vendor category ID: {vendor_cat_id}")
+    
+    # 2. Item Group kategori ID'sini ekle
     if category_id and str(category_id).isdigit():
         categories.append({"id": int(category_id)})
         print(f"DEBUG: Added Item Group category ID: {category_id}")
-    
-    # 2. Ana kategori (374) - her zaman eklenir
-    categories.append({"id": 374})
-    print(f"DEBUG: Categories after Item Group: {categories}")
 
     # regular_price tercihi: override > item.standard_rate
     regular_price_value = (
@@ -443,7 +481,7 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
                     # Aynı kategori zaten ekli mi kontrol et
                     existing_ids = [c.get("id") for c in categories]
                     if supplier_cat_int not in existing_ids:
-                        categories.append({"id": supplier_cat_int, "parent": 374})
+                        categories.append({"id": supplier_cat_int, "parent": vendor_cat_id})
                         print(f"DEBUG: Added Supplier category ID: {supplier_cat_int} for supplier: {supplier_name}")
         
         print(f"\n\n\n DEBUG:1 Final categories", categories)
@@ -459,13 +497,9 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
             "stock_status": "instock",
             "status": status_value,
             "categories": categories,
+            "images": images,
             "meta_data": meta_data or [],
         }
-        
-        # Images sadece public file varsa ekle
-        if images is not None:
-            wc_data["images"] = images
-            
         return wc_data
     else:
         wc_data = {
