@@ -384,13 +384,19 @@ def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, m
     image_path = item_data.get("image", "") or ""
     images = []
     if image_path:
-        images = [
-            {
-                "src": f"{base_url}{image_path}",
-                "name": item_data.get("item_name", ""),
-                "alt": item_data.get("item_name", ""),
-            }
-        ]
+        # Private files kontrolü - WooCommerce erişemez, atla
+        if "/private/" in image_path:
+            print(f"⚠️ Private file atlandı (WooCommerce erişemez): {image_path}")
+            images = []
+        else:
+            # Public file - WooCommerce'e gönder
+            images = [
+                {
+                    "src": f"{base_url}{image_path}",
+                    "name": item_data.get("item_name", ""),
+                    "alt": item_data.get("item_name", ""),
+                }
+            ]
 
     # Categories başlangıcı - Item Group categories'ini ekle
     categories = []
