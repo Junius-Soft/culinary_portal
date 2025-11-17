@@ -430,3 +430,88 @@ def bulk_sync_dokan_vendors(supplier_names):
             "status": "error",
             "message": frappe._("Bulk sync error: {0}").format(str(e))
         }
+
+
+@frappe.whitelist()
+def toggle_customer_status(customer_name):
+    """Customer'ı enable/disable eder"""
+    try:
+        if not customer_name:
+            return {"status": "error", "message": frappe._("Customer name not found")}
+        
+        # Customer'ı al
+        customer_doc = frappe.db.get_value(
+            "Customer",
+            customer_name,
+            ["name", "customer_name", "disabled", "custom_portal_user_id"],
+            as_dict=True
+        )
+        
+        if not customer_doc:
+            return {
+                "status": "error",
+                "message": frappe._("Customer not found: '{0}'").format(customer_name)
+            }
+        
+        customer_display_name = customer_doc.get("customer_name") or customer_name
+        
+        # WordPress User ID'yi al - custom_portal_user_id'yi direkt kullan
+        wp_user_id = customer_doc.get("custom_portal_user_id")
+        
+        # custom_portal_user_id kontrolü
+        if not wp_user_id or wp_user_id == 0:
+            return {
+                "status": "error",
+                "message": frappe._("Customer does not have WordPress User ID (custom_portal_user_id)")
+            }
+        
+        # Mevcut durumu kontrol et ve tersine çevir
+        current_disabled = customer_doc.get("disabled", 0) or 0
+        new_disabled = 1 if current_disabled == 0 else 0
+        new_role = "customerpendinginfo" if new_disabled == 1 else "customer"
+        
+        # WordPress User API'ye PUT isteği at (role güncellemesi için)
+        url = f"{get_wo_url()}/wp-json/wp/v2/users/{wp_user_id}"
+        payload = {"roles": [new_role]}
+        
+        resp = requests.put(
+            url,
+            auth=(get_wp_user(), get_wp_app_key()),
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=40,
+        )
+        
+        if resp.status_code not in (200, 201):
+            frappe.log_error(
+                title="Customer Status Toggle Error",
+                message=f"User ID: {wp_user_id}\nEmail: {customer_doc.get('email_id')}\nStatus: {resp.status_code}\nResponse: {resp.text}",
+            )
+            return {
+                "status": "error",
+                "message": frappe._("Failed to update customer role in WooCommerce. Status: {0}, Response: {1}").format(resp.status_code, resp.text[:200])
+            }
+        
+        # Customer doctype'ındaki disabled alanını güncelle
+        frappe.db.set_value("Customer", customer_doc.name, "disabled", new_disabled)
+        frappe.db.commit()
+        
+        status_text = frappe._("disabled") if new_disabled == 1 else frappe._("enabled")
+        
+        return {
+            "status": "success",
+            "message": frappe._("Customer '{0}' has been {1}").format(customer_display_name, status_text),
+            "customer_name": customer_display_name,
+            "disabled": new_disabled,
+            "role": new_role
+        }
+        
+    except Exception as e:
+        frappe.log_error(
+            title="Customer Status Toggle Exception",
+            message=frappe.get_traceback()
+        )
+        return {
+            "status": "error",
+            "message": frappe._("Error: {0}").format(str(e))
+        }
