@@ -137,7 +137,8 @@ def create_or_update_customer(user_data, is_new_customer=False):
 			"doctype": "Customer",
 			"customer_name": customer_name,
 			"woocommerce_identifier": email,
-			"custom_portal_user_id": user_id,					
+			"custom_portal_user_id": user_id,
+			"disabled":1,
 		})
 		
 		# Tüm WordPress data'sını map et
