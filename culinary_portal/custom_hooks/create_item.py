@@ -656,15 +656,27 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 	try:
 		url = f"{get_wo_url()}/wp-json/wc/v3/products"
 
+		# Meta_data kontrolü ve log
+		if "meta_data" in payload:
+			meta_data_count = len(payload.get("meta_data", []))
+			print(f"DEBUG: send_to_woocommerce - meta_data sayısı: {meta_data_count}")
+			# UOM meta_data'larını kontrol et
+			uom_metas = [m for m in payload.get("meta_data", []) if m.get("key") in ["product_uom", "convertion_uom", "convertion_rate"]]
+			if uom_metas:
+				print(f"DEBUG: UOM meta_data'ları payload'da: {uom_metas}")
+			else:
+				print("DEBUG: UYARI - UOM meta_data'ları payload'da bulunamadı!")
+
 		# ID varsa güncelle, yoksa yeni oluştur
 		if existing_wc_id:
+			print(f"DEBUG: PUT isteği gönderiliyor - URL: {url}/{existing_wc_id}")
 			response = requests.put(
 				f"{url}/{existing_wc_id}",
 				auth=(consumer_key, consumer_secret),
 				json=payload,
 				headers={"Content-Type": "application/json"},
 			)
-			print(f"🔄 Portal ürün güncellendi - ID: {existing_wc_id}")
+			print(f"🔄 Portal ürün güncellendi - ID: {existing_wc_id}, Status: {response.status_code}")
 			wc_product_id = existing_wc_id
 		else:
 			response = requests.post(
@@ -679,6 +691,19 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 		if response.status_code in (200, 201):
 			response_data = response.json()
 			wc_product_id = response_data.get("id")
+			
+			# Response'daki meta_data'yı kontrol et
+			if "meta_data" in response_data:
+				response_meta_count = len(response_data.get("meta_data", []))
+				print(f"DEBUG: Response meta_data sayısı: {response_meta_count}")
+				# UOM meta_data'larını kontrol et
+				response_uom_metas = [m for m in response_data.get("meta_data", []) if m.get("key") in ["product_uom", "convertion_uom", "convertion_rate"]]
+				if response_uom_metas:
+					print(f"DEBUG: Response'da UOM meta_data'ları: {response_uom_metas}")
+				else:
+					print("DEBUG: UYARI - Response'da UOM meta_data'ları yok!")
+			else:
+				print("DEBUG: UYARI - Response'da meta_data yok!")
 
 			# Eğer yeni oluşturulduysa, Item'a WooCommerce ID'yi kaydet
 			if wc_product_id and not existing_wc_id:
