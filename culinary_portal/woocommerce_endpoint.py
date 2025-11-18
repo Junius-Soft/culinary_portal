@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 
 import frappe
 from frappe import _
+from frappe.utils import now
 from werkzeug.wrappers import Response
 
 from culinary_portal.tasks.sync_sales_orders import run_sales_order_sync
@@ -159,6 +160,9 @@ def update_wordpress_user_from_customer(customer_doc):
 	try:
 		url = f"{get_wo_url()}/wp-json/wp/v2/users/{portal_user_id}"
 		
+		sync_key = f"erpnext_wp_sync_{portal_user_id}"
+		frappe.cache().set_value(sync_key, now(), expires_in_sec=300)
+
 		# Meta data payload'u oluştur
 		meta_payload = {}
 		
@@ -245,6 +249,7 @@ def update_wordpress_user_from_customer(customer_doc):
 				title="WordPress User Update Error",
 				message=f"User ID: {portal_user_id}\nStatus: {resp.status_code}\nResponse: {resp.text}",
 			)
+			frappe.cache().delete_value(sync_key)
 			return False
 			
 	except Exception as e:
@@ -252,6 +257,7 @@ def update_wordpress_user_from_customer(customer_doc):
 			title="WordPress User Update Exception",
 			message=f"Error: {str(e)}\n{frappe.get_traceback()}",
 		)
+		frappe.cache().delete_value(sync_key)
 		return False
 
 
@@ -553,6 +559,13 @@ def user_updated(*args, **kwargs):
 		if not user_id:
 			print("\n\n\n DEBUG-UPDATE-ERROR: User ID bulunamadı!")
 			return Response(response=_("User ID not found"), status=HTTPStatus.BAD_REQUEST)
+		
+		# ERPNext tarafından tetiklenen güncellemeleri atla
+		sync_key = f"erpnext_wp_sync_{user_id}"
+		if frappe.cache().get_value(sync_key):
+			print("\n\n\n DEBUG-UPDATE-SKIP: ERPNext kaynaklı güncelleme algılandı, webhook ignore ediliyor")
+			frappe.cache().delete_value(sync_key)
+			return Response(status=HTTPStatus.OK)
 		
 		# Sonsuz döngüyü önle: Eğer bu güncelleme ERPNext'ten geldiyse ignore et
 		meta_data = user_data.get("meta_data", [])
