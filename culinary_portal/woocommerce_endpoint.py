@@ -347,18 +347,31 @@ def create_or_update_customer(user_data, is_new_customer=False):
 		# Tüm WordPress data'sını map et
 		customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
 		
-		# Address oluştur/güncelle
+		# Önce Customer'ı kaydet (Address'ten önce)
+		customer_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+		
+		# Address oluştur/güncelle (Customer kaydedildikten sonra)
 		meta_data = user_data.get("meta_data", [])
 		address_name = create_or_update_address(customer_doc, meta_data)
 		if address_name:
+			# Customer'ı reload et ve address'i set et
+			customer_doc.reload()
 			customer_doc.customer_primary_address = address_name
+			customer_doc.flags.skip_b2b_group_hook = True
+			customer_doc.flags.ignore_permissions = True
+			customer_doc.flags.ignore_validate = True
+			customer_doc.flags.ignore_mandatory = True
+			customer_doc.flags.ignore_links = True
+			customer_doc.save(ignore_permissions=True)
+			frappe.db.commit()
 		
-		customer_doc.save(ignore_permissions=True)
-		frappe.db.commit()
 		print(f"\n\n\n DEBUG-COMMON-3 Customer güncellendi: {existing_customer}")
 		
 		# WordPress'e PUT isteği ile güncelleme gönder
 		if user_id:
+			# Customer'ı son halini almak için reload et
+			customer_doc.reload()
 			update_wordpress_user(user_id, customer_doc, meta_data)
 		
 		return existing_customer, "güncellendi"
@@ -397,12 +410,20 @@ def create_or_update_customer(user_data, is_new_customer=False):
 		meta_data = user_data.get("meta_data", [])
 		address_name = create_or_update_address(customer_doc, meta_data)
 		if address_name:
+			# Customer'ı reload et ve address'i set et
+			customer_doc.reload()
 			customer_doc.customer_primary_address = address_name
+			customer_doc.flags.ignore_permissions = True
+			customer_doc.flags.ignore_validate = True
+			customer_doc.flags.ignore_mandatory = True
+			customer_doc.flags.ignore_links = True
 			customer_doc.save(ignore_permissions=True)
 			frappe.db.commit()
 		
 		# WordPress'e PUT isteği ile güncelleme gönder
 		if user_id:
+			# Customer'ı son halini almak için reload et
+			customer_doc.reload()
 			update_wordpress_user(user_id, customer_doc, meta_data)
 		
 		return customer_doc.name, "oluşturuldu"
