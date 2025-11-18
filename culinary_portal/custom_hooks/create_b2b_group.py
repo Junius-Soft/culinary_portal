@@ -7,9 +7,8 @@ from culinary_portal.custom_hooks.create_item import (
     get_wp_user,
     get_wp_app_key
 )
-from culinary_portal.culinary_portal.woocommerce_endpoint import (
-    update_wordpress_user_from_customer
-)
+# Circular import'u önlemek için lazy import kullan
+# from culinary_portal.woocommerce_endpoint import update_wordpress_user_from_customer
 
 
 def delete_wp_user(portal_user_id: int) -> bool:
@@ -313,6 +312,9 @@ def handle_customer_wordpress_sync(doc, method=None):
 			return
 		doc.flags.culinary_wordpress_sync_ran = True
 		
+		# Circular import'u önlemek için lazy import
+		from culinary_portal.woocommerce_endpoint import update_wordpress_user_from_customer
+		
 		# WordPress'e güncelleme gönder
 		update_wordpress_user_from_customer(doc)
 		
@@ -328,74 +330,74 @@ def handle_customer_on_trash(doc, method=None):
 	Customer silindiğinde WordPress'te user ve B2B Group'u da siler.
 	Hook tarafından çağrılır.
 	"""
-    try:
-        # Flag kontrolü - tekrar çalışmasını önle
-        if getattr(doc.flags, "wp_delete_sync_ran", False):
-            return
-        doc.flags.wp_delete_sync_ran = True
-        
-        # TÜM background job'ları ve enqueue işlemlerini devre dışı bırak
-        frappe.flags.in_import = True
-        frappe.flags.in_test = True
-        frappe.flags.enqueue_after_commit = []
-        
-        portal_user_id = getattr(doc, "custom_portal_user_id", None)
-        b2b_group_id = getattr(doc, "custom_b2b_group_id", None)
-        
-        if not portal_user_id and not b2b_group_id:
-            # Flag'leri geri al
-            frappe.flags.in_import = False
-            frappe.flags.in_test = False
-            return
-        
-        print(f"\n\n\n DEBUG: Customer siliniyor - {doc.name}")
-        print(f"\n\n\n DEBUG: Portal User ID: {portal_user_id}, B2B Group ID: {b2b_group_id}")
-        
-        # WordPress User'ı sil
-        if portal_user_id:
-            print(f"\n\n\n DEBUG: WordPress User siliniyor (ID: {portal_user_id})...")
-            try:
-                user_deleted = delete_wp_user(portal_user_id)
-                if user_deleted:
-                    print(f"\n\n\n DEBUG: WordPress User başarıyla silindi")
-                else:
-                    print(f"\n\n\n DEBUG: WordPress User silinemedi!")
-            except Exception as e:
-                print(f"\n\n\n DEBUG: WordPress User silme hatası: {str(e)}")
-                frappe.log_error(
-                    title="WordPress User Delete Error",
-                    message=f"Customer: {doc.name}\nError: {str(e)}",
-                )
-        
-        # B2B Group'u sil
-        if b2b_group_id:
-            print(f"\n\n\n DEBUG: B2B Group siliniyor (ID: {b2b_group_id})...")
-            try:
-                group_deleted = delete_b2b_group(b2b_group_id)
-                if group_deleted:
-                    print(f"\n\n\n DEBUG: B2B Group başarıyla silindi")
-                else:
-                    print(f"\n\n\n DEBUG: B2B Group silinemedi!")
-            except Exception as e:
-                print(f"\n\n\n DEBUG: B2B Group silme hatası: {str(e)}")
-                frappe.log_error(
-                    title="WordPress B2B Group Delete Error",
-                    message=f"Customer: {doc.name}\nError: {str(e)}",
-                )
-        
-        # Flag'leri geri al
-        frappe.flags.in_import = False
-        frappe.flags.in_test = False
-            
-    except Exception as e:
-        print(f"\n\n\n DEBUG: Customer on_trash exception: {str(e)}")
-        frappe.log_error(
-            title="Customer On Trash Error",
-            message=frappe.get_traceback(),
-        )
-        # Hata olsa bile flag'leri geri al
-        frappe.flags.in_import = False
-        frappe.flags.in_test = False
+	try:
+		# Flag kontrolü - tekrar çalışmasını önle
+		if getattr(doc.flags, "wp_delete_sync_ran", False):
+			return
+		doc.flags.wp_delete_sync_ran = True
+		
+		# TÜM background job'ları ve enqueue işlemlerini devre dışı bırak
+		frappe.flags.in_import = True
+		frappe.flags.in_test = True
+		frappe.flags.enqueue_after_commit = []
+		
+		portal_user_id = getattr(doc, "custom_portal_user_id", None)
+		b2b_group_id = getattr(doc, "custom_b2b_group_id", None)
+		
+		if not portal_user_id and not b2b_group_id:
+			# Flag'leri geri al
+			frappe.flags.in_import = False
+			frappe.flags.in_test = False
+			return
+		
+		print(f"\n\n\n DEBUG: Customer siliniyor - {doc.name}")
+		print(f"\n\n\n DEBUG: Portal User ID: {portal_user_id}, B2B Group ID: {b2b_group_id}")
+		
+		# WordPress User'ı sil
+		if portal_user_id:
+			print(f"\n\n\n DEBUG: WordPress User siliniyor (ID: {portal_user_id})...")
+			try:
+				user_deleted = delete_wp_user(portal_user_id)
+				if user_deleted:
+					print(f"\n\n\n DEBUG: WordPress User başarıyla silindi")
+				else:
+					print(f"\n\n\n DEBUG: WordPress User silinemedi!")
+			except Exception as e:
+				print(f"\n\n\n DEBUG: WordPress User silme hatası: {str(e)}")
+				frappe.log_error(
+					title="WordPress User Delete Error",
+					message=f"Customer: {doc.name}\nError: {str(e)}",
+				)
+		
+		# B2B Group'u sil
+		if b2b_group_id:
+			print(f"\n\n\n DEBUG: B2B Group siliniyor (ID: {b2b_group_id})...")
+			try:
+				group_deleted = delete_b2b_group(b2b_group_id)
+				if group_deleted:
+					print(f"\n\n\n DEBUG: B2B Group başarıyla silindi")
+				else:
+					print(f"\n\n\n DEBUG: B2B Group silinemedi!")
+			except Exception as e:
+				print(f"\n\n\n DEBUG: B2B Group silme hatası: {str(e)}")
+				frappe.log_error(
+					title="WordPress B2B Group Delete Error",
+					message=f"Customer: {doc.name}\nError: {str(e)}",
+				)
+		
+		# Flag'leri geri al
+		frappe.flags.in_import = False
+		frappe.flags.in_test = False
+			
+	except Exception as e:
+		print(f"\n\n\n DEBUG: Customer on_trash exception: {str(e)}")
+		frappe.log_error(
+			title="Customer On Trash Error",
+			message=frappe.get_traceback(),
+		)
+		# Hata olsa bile flag'leri geri al
+		frappe.flags.in_import = False
+		frappe.flags.in_test = False
 
 
 @frappe.whitelist()
