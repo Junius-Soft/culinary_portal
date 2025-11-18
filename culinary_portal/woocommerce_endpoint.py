@@ -162,66 +162,58 @@ def update_wordpress_user_from_customer(customer_doc):
 		# Meta data payload'u oluştur
 		meta_payload = {}
 		
-		# Sosyal medya ve profil URL'leri
-		if customer_doc.custom_twitter:
-			meta_payload["twitter"] = customer_doc.custom_twitter
-		if customer_doc.custom_facebook:
-			meta_payload["facebook"] = customer_doc.custom_facebook
-		if customer_doc.custom_profile_url:
-			meta_payload["additional_profile_urls"] = customer_doc.custom_profile_url
+		# Sosyal medya ve profil URL'leri (boş değerler de gönderilsin)
+		meta_payload["twitter"] = getattr(customer_doc, "custom_twitter", "") or ""
+		meta_payload["facebook"] = getattr(customer_doc, "custom_facebook", "") or ""
+		meta_payload["additional_profile_urls"] = getattr(customer_doc, "custom_profile_url", "") or ""
 		
-		# Custom field'ları meta_data'ya ekle
-		if customer_doc.custom_company_name:
-			meta_payload["company_name"] = customer_doc.custom_company_name
-		if customer_doc.custom_reference:
-			meta_payload["reference"] = customer_doc.custom_reference
-		if customer_doc.custom_telephone_number:
-			meta_payload["user_phone"] = customer_doc.custom_telephone_number
-		if customer_doc.custom_company_type:
-			meta_payload["company_type"] = customer_doc.custom_company_type
-		if customer_doc.custom_tax_id_number:
-			meta_payload["steuernummer"] = customer_doc.custom_tax_id_number
-		if customer_doc.custom_vat_identification:
-			meta_payload["umsatzsteuer"] = customer_doc.custom_vat_identification
-		if customer_doc.custom_company_representative_name:
-			meta_payload["firmenvertreter_name"] = customer_doc.custom_company_representative_name
-		if customer_doc.custom_company_representative_surname:
-			meta_payload["firmenvertreter_surname"] = customer_doc.custom_company_representative_surname
-		if customer_doc.custom_company_representative_phone:
-			meta_payload["firmenvertreter_phone"] = customer_doc.custom_company_representative_phone
-		if customer_doc.custom_contact_person:
-			meta_payload["kontaktperson__name"] = customer_doc.custom_contact_person
-		if customer_doc.custom_contact_person_email:
-			meta_payload["kontaktperson__email"] = customer_doc.custom_contact_person_email
-		if customer_doc.custom_contact_person_phone:
-			meta_payload["kontaktperson__phone"] = customer_doc.custom_contact_person_phone
-		if customer_doc.custom_iban:
-			meta_payload["iban"] = customer_doc.custom_iban
-		if customer_doc.custom_bic:
-			meta_payload["bic"] = customer_doc.custom_bic
-		if customer_doc.custom_date_of_issue:
-			meta_payload["ausstellungsdatum"] = customer_doc.custom_date_of_issue
-		if customer_doc.custom_expiry_date:
-			meta_payload["ablaufdatum"] = customer_doc.custom_expiry_date
-		if customer_doc.custom_operating_form:
-			meta_payload["betriebsform"] = customer_doc.custom_operating_form
+		# Custom field'ları meta_data'ya ekle (boş değerler de gönderilsin)
+		meta_payload["company_name"] = getattr(customer_doc, "custom_company_name", "") or ""
+		meta_payload["reference"] = getattr(customer_doc, "custom_reference", "") or ""
+		meta_payload["user_phone"] = getattr(customer_doc, "custom_telephone_number", "") or ""
+		meta_payload["company_type"] = getattr(customer_doc, "custom_company_type", "") or ""
+		meta_payload["steuernummer"] = getattr(customer_doc, "custom_tax_id_number", "") or ""
+		meta_payload["umsatzsteuer"] = getattr(customer_doc, "custom_vat_identification", "") or ""
+		meta_payload["firmenvertreter_name"] = getattr(customer_doc, "custom_company_representative_name", "") or ""
+		meta_payload["firmenvertreter_surname"] = getattr(customer_doc, "custom_company_representative_surname", "") or ""
+		meta_payload["firmenvertreter_phone"] = getattr(customer_doc, "custom_company_representative_phone", "") or ""
+		meta_payload["kontaktperson__name"] = getattr(customer_doc, "custom_contact_person", "") or ""
+		meta_payload["kontaktperson__email"] = getattr(customer_doc, "custom_contact_person_email", "") or ""
+		meta_payload["kontaktperson__phone"] = getattr(customer_doc, "custom_contact_person_phone", "") or ""
+		meta_payload["iban"] = getattr(customer_doc, "custom_iban", "") or ""
+		meta_payload["bic"] = getattr(customer_doc, "custom_bic", "") or ""
+		meta_payload["ausstellungsdatum"] = getattr(customer_doc, "custom_date_of_issue", "") or ""
+		meta_payload["ablaufdatum"] = getattr(customer_doc, "custom_expiry_date", "") or ""
+		meta_payload["betriebsform"] = getattr(customer_doc, "custom_operating_form", "") or ""
 		
-		# Adres bilgilerini Address doctype'ından al
+		# Adres bilgilerini Address doctype'ından al (boş değerler de gönderilsin)
 		if customer_doc.customer_primary_address:
-			address_doc = frappe.get_doc("Address", customer_doc.customer_primary_address)
-			if address_doc.address_line1:
-				meta_payload["address_street"] = address_doc.address_line1
-			if address_doc.city:
-				meta_payload["address_city"] = address_doc.city
-			if address_doc.state:
-				meta_payload["address_state"] = address_doc.state
-			if address_doc.pincode:
-				meta_payload["address_zip"] = address_doc.pincode
-			if address_doc.country:
-				# Country name'ini al
-				country_name = frappe.db.get_value("Country", address_doc.country, "country_name")
-				if country_name:
-					meta_payload["address_country"] = country_name
+			try:
+				address_doc = frappe.get_doc("Address", customer_doc.customer_primary_address)
+				meta_payload["address_street"] = address_doc.address_line1 or ""
+				meta_payload["address_city"] = address_doc.city or ""
+				meta_payload["address_state"] = address_doc.state or ""
+				meta_payload["address_zip"] = address_doc.pincode or ""
+				if address_doc.country:
+					# Country name'ini al
+					country_name = frappe.db.get_value("Country", address_doc.country, "country_name")
+					meta_payload["address_country"] = country_name or ""
+				else:
+					meta_payload["address_country"] = ""
+			except Exception:
+				# Address bulunamazsa boş değerler gönder
+				meta_payload["address_street"] = ""
+				meta_payload["address_city"] = ""
+				meta_payload["address_state"] = ""
+				meta_payload["address_zip"] = ""
+				meta_payload["address_country"] = ""
+		else:
+			# Address yoksa boş değerler gönder
+			meta_payload["address_street"] = ""
+			meta_payload["address_city"] = ""
+			meta_payload["address_state"] = ""
+			meta_payload["address_zip"] = ""
+			meta_payload["address_country"] = ""
 		
 		# Sonsuz döngüyü önlemek için flag ekle
 		meta_payload["erpnext_sync"] = "true"
