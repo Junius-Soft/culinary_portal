@@ -31,7 +31,7 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	WordPress user data'sını Customer doc'a map eder
 	"""
 	# Ana alanlar
-	customer_doc.role = user_data.get("role", "")
+	customer_doc.custom_role = user_data.get("role", "")
 	customer_doc.username = user_data.get("username", "")
 	customer_doc.is_paying_customer = 1 if user_data.get("is_paying_customer") else 0
 	customer_doc.avatar_url = user_data.get("avatar_url", "")
@@ -58,9 +58,9 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	customer_doc.custom_company_type = extract_meta_value(meta_data, "company_type")
 	customer_doc.custom_tax_id_number = extract_meta_value(meta_data, "steuernummer")
 	customer_doc.custom_vat_identification = extract_meta_value(meta_data, "umsatzsteuer")
-	customer_doc.custom_company_representative_name = extract_meta_value(meta_data, "firmenvertreter_name")
-	customer_doc.custom_company_representative_surname = extract_meta_value(meta_data, "firmenvertreter_surname")
-	customer_doc.custom_company_representative_phone = extract_meta_value(meta_data, "firmenvertreter_phone")
+	customer_doc.custom_company_representive_name = extract_meta_value(meta_data, "firmenvertreter_name")
+	customer_doc.custom_company_representive_surname = extract_meta_value(meta_data, "firmenvertreter_surname")
+	customer_doc.custom_company_representive_phone = extract_meta_value(meta_data, "firmenvertreter_phone")
 	customer_doc.custom_contact_person = extract_meta_value(meta_data, "kontaktperson__name")
 	customer_doc.custom_contact_person_email = extract_meta_value(meta_data, "kontaktperson__email")
 	customer_doc.custom_contact_person_phone = extract_meta_value(meta_data, "kontaktperson__phone")
@@ -68,7 +68,7 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	customer_doc.custom_bic = extract_meta_value(meta_data, "bic")
 	customer_doc.custom_date_of_issue = extract_meta_value(meta_data, "ausstellungsdatum")
 	customer_doc.custom_expiry_date = extract_meta_value(meta_data, "ablaufdatum")
-	customer_doc.custom_operating_form = extract_meta_value(meta_data, "operating_form")
+	customer_doc.custom_operating_form = extract_meta_value(meta_data, "betriebsform")
 	
 	return customer_doc
 
