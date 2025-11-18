@@ -218,6 +218,9 @@ def update_wordpress_user(user_id, customer_doc, meta_data):
 		if address_country:
 			meta_payload["address_country"] = address_country
 		
+		# Sonsuz döngüyü önlemek için flag ekle
+		meta_payload["erpnext_sync"] = "true"
+		
 		payload = {
 			"meta": meta_payload
 		}
@@ -549,6 +552,13 @@ def user_updated(*args, **kwargs):
 		except ValueError:
 			# WordPress webhook'un ilk test isteği 'webhook_id=value' formatında gelir (JSON değil)
 			print("\n\n\n DEBUG-UPDATE-3.1 İlk test isteği (webhook_id), başarılı kabul edildi")
+			return Response(status=HTTPStatus.OK)
+		
+		# Sonsuz döngüyü önle: Eğer bu güncelleme ERPNext'ten geldiyse ignore et
+		meta_data = user_data.get("meta_data", [])
+		erpnext_sync = extract_meta_value(meta_data, "erpnext_sync")
+		if erpnext_sync == "true":
+			print("\n\n\n DEBUG-UPDATE-SKIP: Bu güncelleme ERPNext'ten geldi, webhook ignore ediliyor (sonsuz döngü önleme)")
 			return Response(status=HTTPStatus.OK)
 		
 		try:
