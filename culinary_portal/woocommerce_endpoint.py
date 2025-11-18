@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import json
+import requests
 from http import HTTPStatus
 from typing import Optional, Tuple
 
@@ -13,6 +14,11 @@ from culinary_portal.tasks.sync_sales_orders import run_sales_order_sync
 from culinary_portal.culinary_portal.woocommerce_api import (
 	WC_RESOURCE_DELIMITER,
 	parse_domain_from_url,
+)
+from culinary_portal.custom_hooks.create_item import (
+	get_wo_url,
+	get_wp_user,
+	get_wp_app_key,
 )
 
 
@@ -26,30 +32,209 @@ def extract_meta_value(meta_data, key):
 	return ""
 
 
+def map_country_name_to_code(country_name):
+	"""
+	Ülke adını (örn: Deutschland) Country doctype'ındaki code'a map eder
+	"""
+	if not country_name:
+		return None
+	
+	# Yaygın ülke adı mapping'leri
+	country_mapping = {
+		"Deutschland": "DE",
+		"Germany": "DE",
+		"Türkiye": "TR",
+		"Turkey": "TR",
+		"United States": "US",
+		"USA": "US",
+	}
+	
+	# Önce mapping'den kontrol et
+	if country_name in country_mapping:
+		country_code = country_mapping[country_name]
+		if frappe.db.exists("Country", {"code": country_code}):
+			return country_code
+	
+	# Direkt ülke adı ile ara
+	country_code = frappe.db.get_value("Country", {"country_name": country_name}, "code")
+	if country_code:
+		return country_code
+	
+	# Code ile direkt ara (zaten code ise)
+	if frappe.db.exists("Country", {"code": country_name.upper()}):
+		return country_name.upper()
+	
+	return None
+
+
+def create_or_update_address(customer_doc, meta_data):
+	"""
+	WordPress meta_data'dan Address oluşturur veya günceller
+	"""
+	address_street = extract_meta_value(meta_data, "address_street")
+	address_city = extract_meta_value(meta_data, "address_city")
+	address_state = extract_meta_value(meta_data, "address_state")
+	address_zip = extract_meta_value(meta_data, "address_zip")
+	address_country = extract_meta_value(meta_data, "address_country")
+	
+	# Adres bilgisi yoksa işlem yapma
+	if not address_street and not address_city:
+		return None
+	
+	# Country code'u bul
+	country_code = map_country_name_to_code(address_country)
+	if not country_code:
+		# Varsayılan olarak DE kullan
+		country_code = "DE"
+	
+	# Mevcut primary address'i kontrol et
+	existing_address_name = customer_doc.customer_primary_address
+	
+	if existing_address_name and frappe.db.exists("Address", existing_address_name):
+		# Mevcut address'i güncelle
+		address_doc = frappe.get_doc("Address", existing_address_name)
+		address_doc.address_line1 = address_street
+		address_doc.city = address_city
+		address_doc.state = address_state
+		address_doc.pincode = address_zip
+		address_doc.country = country_code
+		address_doc.address_type = "Shipping"
+		address_doc.flags.ignore_permissions = True
+		address_doc.flags.ignore_validate = True
+		address_doc.flags.ignore_mandatory = True
+		address_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+		print(f"\n\n\n DEBUG-ADDRESS-1 Address güncellendi: {existing_address_name}")
+		return existing_address_name
+	else:
+		# Yeni address oluştur
+		address_doc = frappe.new_doc("Address")
+		address_doc.address_title = customer_doc.customer_name
+		address_doc.address_type = "Shipping"
+		address_doc.address_line1 = address_street
+		address_doc.city = address_city
+		address_doc.state = address_state
+		address_doc.pincode = address_zip
+		address_doc.country = country_code
+		address_doc.is_primary_address = 1
+		address_doc.is_shipping_address = 1
+		address_doc.append("links", {"link_doctype": "Customer", "link_name": customer_doc.name})
+		address_doc.flags.ignore_permissions = True
+		address_doc.flags.ignore_validate = True
+		address_doc.flags.ignore_mandatory = True
+		address_doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		print(f"\n\n\n DEBUG-ADDRESS-2 Yeni Address oluşturuldu: {address_doc.name}")
+		return address_doc.name
+
+
+def update_wordpress_user(user_id, customer_doc, meta_data):
+	"""
+	ERPNext'teki Customer verilerini WordPress user'a PUT isteği ile gönderir
+	"""
+	try:
+		url = f"{get_wo_url()}/wp-json/wp/v2/users/{user_id}"
+		
+		# Meta data payload'u oluştur
+		meta_payload = {}
+		
+		# Custom field'ları meta_data'ya ekle
+		if customer_doc.custom_company_name:
+			meta_payload["company_name"] = customer_doc.custom_company_name
+		if customer_doc.custom_reference:
+			meta_payload["reference"] = customer_doc.custom_reference
+		if customer_doc.custom_telephone_number:
+			meta_payload["user_phone"] = customer_doc.custom_telephone_number
+		if customer_doc.custom_company_type:
+			meta_payload["company_type"] = customer_doc.custom_company_type
+		if customer_doc.custom_tax_id_number:
+			meta_payload["steuernummer"] = customer_doc.custom_tax_id_number
+		if customer_doc.custom_vat_identification:
+			meta_payload["umsatzsteuer"] = customer_doc.custom_vat_identification
+		if customer_doc.custom_company_representative_name:
+			meta_payload["firmenvertreter_name"] = customer_doc.custom_company_representative_name
+		if customer_doc.custom_company_representative_surname:
+			meta_payload["firmenvertreter_surname"] = customer_doc.custom_company_representative_surname
+		if customer_doc.custom_company_representative_phone:
+			meta_payload["firmenvertreter_phone"] = customer_doc.custom_company_representative_phone
+		if customer_doc.custom_contact_person:
+			meta_payload["kontaktperson__name"] = customer_doc.custom_contact_person
+		if customer_doc.custom_contact_person_email:
+			meta_payload["kontaktperson__email"] = customer_doc.custom_contact_person_email
+		if customer_doc.custom_contact_person_phone:
+			meta_payload["kontaktperson__phone"] = customer_doc.custom_contact_person_phone
+		if customer_doc.custom_iban:
+			meta_payload["iban"] = customer_doc.custom_iban
+		if customer_doc.custom_bic:
+			meta_payload["bic"] = customer_doc.custom_bic
+		if customer_doc.custom_date_of_issue:
+			meta_payload["ausstellungsdatum"] = customer_doc.custom_date_of_issue
+		if customer_doc.custom_expiry_date:
+			meta_payload["ablaufdatum"] = customer_doc.custom_expiry_date
+		if customer_doc.custom_operating_form:
+			meta_payload["betriebsform"] = customer_doc.custom_operating_form
+		
+		# Adres bilgilerini ekle
+		address_street = extract_meta_value(meta_data, "address_street")
+		address_city = extract_meta_value(meta_data, "address_city")
+		address_state = extract_meta_value(meta_data, "address_state")
+		address_zip = extract_meta_value(meta_data, "address_zip")
+		address_country = extract_meta_value(meta_data, "address_country")
+		
+		if address_street:
+			meta_payload["address_street"] = address_street
+		if address_city:
+			meta_payload["address_city"] = address_city
+		if address_state:
+			meta_payload["address_state"] = address_state
+		if address_zip:
+			meta_payload["address_zip"] = address_zip
+		if address_country:
+			meta_payload["address_country"] = address_country
+		
+		payload = {
+			"meta": meta_payload
+		}
+		
+		print(f"\n\n\n DEBUG-WP-UPDATE-1 URL: {url}")
+		print(f"\n\n\n DEBUG-WP-UPDATE-2 Payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
+		
+		# WordPress'e PUT isteği
+		resp = requests.put(
+			url,
+			auth=(get_wp_user(), get_wp_app_key()),
+			json=payload,
+			headers={"Content-Type": "application/json"},
+			timeout=40,
+		)
+		
+		print(f"\n\n\n DEBUG-WP-UPDATE-3 Status: {resp.status_code}")
+		print(f"\n\n\n DEBUG-WP-UPDATE-4 Response: {resp.text}")
+		
+		if resp.status_code in (200, 201):
+			print(f"\n\n\n DEBUG-WP-UPDATE-5 WordPress user {user_id} başarıyla güncellendi")
+			return True
+		else:
+			frappe.log_error(
+				title="WordPress User Update Error",
+				message=f"User ID: {user_id}\nStatus: {resp.status_code}\nResponse: {resp.text}",
+			)
+			return False
+			
+	except Exception as e:
+		frappe.log_error(
+			title="WordPress User Update Exception",
+			message=f"Error: {str(e)}\n{frappe.get_traceback()}",
+		)
+		return False
+
+
 def map_wordpress_data_to_customer(user_data, customer_doc):
 	"""
 	WordPress user data'sını Customer doc'a map eder
 	"""
-	# Ana alanlar
-	customer_doc.custom_role = user_data.get("role", "")
-	customer_doc.username = user_data.get("username", "")
-	customer_doc.is_paying_customer = 1 if user_data.get("is_paying_customer") else 0
-	customer_doc.avatar_url = user_data.get("avatar_url", "")
-	
 	# Meta data alanları
 	meta_data = user_data.get("meta_data", [])
-	
-	customer_doc.entry_id = extract_meta_value(meta_data, "entry_id")
-	customer_doc.twitter = extract_meta_value(meta_data, "twitter")
-	customer_doc.facebook = extract_meta_value(meta_data, "facebook")
-	customer_doc.additional_profile_urls = extract_meta_value(meta_data, "additional_profile_urls")
-	customer_doc.wc_last_active = extract_meta_value(meta_data, "wc_last_active")
-	customer_doc.address_street = extract_meta_value(meta_data, "address_street")
-	customer_doc.address_apartment = extract_meta_value(meta_data, "address_apartment")
-	customer_doc.address_city = extract_meta_value(meta_data, "address_city")
-	customer_doc.address_state = extract_meta_value(meta_data, "address_state")
-	customer_doc.address_zip = extract_meta_value(meta_data, "address_zip")
-	customer_doc.address_country = extract_meta_value(meta_data, "address_country")
 	
 	# İngilizce custom field'lar (resimdeki alan isimleri)
 	customer_doc.custom_company_name = extract_meta_value(meta_data, "company_name")
@@ -58,9 +243,9 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	customer_doc.custom_company_type = extract_meta_value(meta_data, "company_type")
 	customer_doc.custom_tax_id_number = extract_meta_value(meta_data, "steuernummer")
 	customer_doc.custom_vat_identification = extract_meta_value(meta_data, "umsatzsteuer")
-	customer_doc.custom_company_representive_name = extract_meta_value(meta_data, "firmenvertreter_name")
-	customer_doc.custom_company_representive_surname = extract_meta_value(meta_data, "firmenvertreter_surname")
-	customer_doc.custom_company_representive_phone = extract_meta_value(meta_data, "firmenvertreter_phone")
+	customer_doc.custom_company_representative_name = extract_meta_value(meta_data, "firmenvertreter_name")
+	customer_doc.custom_company_representative_surname = extract_meta_value(meta_data, "firmenvertreter_surname")
+	customer_doc.custom_company_representative_phone = extract_meta_value(meta_data, "firmenvertreter_phone")
 	customer_doc.custom_contact_person = extract_meta_value(meta_data, "kontaktperson__name")
 	customer_doc.custom_contact_person_email = extract_meta_value(meta_data, "kontaktperson__email")
 	customer_doc.custom_contact_person_phone = extract_meta_value(meta_data, "kontaktperson__phone")
@@ -127,9 +312,19 @@ def create_or_update_customer(user_data, is_new_customer=False):
 		# Tüm WordPress data'sını map et
 		customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
 		
+		# Address oluştur/güncelle
+		meta_data = user_data.get("meta_data", [])
+		address_name = create_or_update_address(customer_doc, meta_data)
+		if address_name:
+			customer_doc.customer_primary_address = address_name
+		
 		customer_doc.save(ignore_permissions=True)
 		frappe.db.commit()
 		print(f"\n\n\n DEBUG-COMMON-3 Customer güncellendi: {existing_customer}")
+		
+		# WordPress'e PUT isteği ile güncelleme gönder
+		if user_id:
+			update_wordpress_user(user_id, customer_doc, meta_data)
 		
 		return existing_customer, "güncellendi"
 	else:
@@ -162,6 +357,18 @@ def create_or_update_customer(user_data, is_new_customer=False):
 		customer_doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 		print(f"\n\n\n DEBUG-COMMON-6 Yeni Customer oluşturuldu: {customer_doc.name}")
+		
+		# Address oluştur/güncelle (customer insert edildikten sonra)
+		meta_data = user_data.get("meta_data", [])
+		address_name = create_or_update_address(customer_doc, meta_data)
+		if address_name:
+			customer_doc.customer_primary_address = address_name
+			customer_doc.save(ignore_permissions=True)
+			frappe.db.commit()
+		
+		# WordPress'e PUT isteği ile güncelleme gönder
+		if user_id:
+			update_wordpress_user(user_id, customer_doc, meta_data)
 		
 		return customer_doc.name, "oluşturuldu"
 
