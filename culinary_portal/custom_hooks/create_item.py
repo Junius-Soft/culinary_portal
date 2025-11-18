@@ -414,6 +414,40 @@ def handle_item_saved(doc, method=None):
 def map_item_to_woocommerce(doc, item_data, base_url, category_id: int | None, meta_data: list[dict], status_value: str = "publish", regular_price_override: str | None = None):
     """ERPNext Item verisini Portal formatına dönüştürür"""
     print("\n\n\n DEBUG:1 DOC NAME", doc)
+    
+    # UOM bilgilerini meta_data'ya ekle
+    uom_meta = []
+    
+    # product_uom - stock_uom değerini gönder
+    stock_uom = item_data.get("stock_uom") or (doc.stock_uom if hasattr(doc, 'stock_uom') else None)
+    if stock_uom:
+        uom_meta.append({"key": "product_uom", "value": stock_uom})
+    
+    # convertion_uom ve convertion_rate - UOM Conversion Detail'den al
+    if doc.doctype == "Item":
+        # Önce doc'tan dene
+        uoms_list = None
+        if hasattr(doc, 'uoms') and doc.uoms:
+            uoms_list = doc.uoms
+        # Doc'ta yoksa item_data'dan dene
+        elif item_data.get("uoms"):
+            uoms_list = item_data.get("uoms")
+        
+        if uoms_list and len(uoms_list) > 0:
+            first_uom = uoms_list[0]
+            # Dict veya object olabilir
+            uom_value = first_uom.get("uom") if isinstance(first_uom, dict) else (first_uom.uom if hasattr(first_uom, 'uom') else None)
+            conversion_factor = first_uom.get("conversion_factor") if isinstance(first_uom, dict) else (first_uom.conversion_factor if hasattr(first_uom, 'conversion_factor') else None)
+            
+            if uom_value:
+                uom_meta.append({"key": "convertion_uom", "value": uom_value})
+            if conversion_factor is not None:
+                uom_meta.append({"key": "convertion_rate", "value": str(conversion_factor)})
+    
+    # Mevcut meta_data ile birleştir
+    if uom_meta:
+        meta_data = (meta_data or []) + uom_meta
+    
     image_path = item_data.get("image", "") or ""
     images = []  # Default boş array
     if image_path:
