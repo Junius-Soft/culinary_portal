@@ -20,6 +20,8 @@ from culinary_portal.custom_hooks.create_item import (
 	get_wo_url,
 	get_wp_user,
 	get_wp_app_key,
+	get_consumer_key,
+	get_consumer_secret,
 )
 
 
@@ -158,81 +160,65 @@ def update_wordpress_user_from_customer(customer_doc):
 		return False
 	
 	try:
-		url = f"{get_wo_url()}/wp-json/wp/v2/users/{portal_user_id}"
-		
+		customer_url = f"{get_wo_url()}/wp-json/wc/v3/customers/{portal_user_id}"
 		sync_key = f"erpnext_wp_sync_{portal_user_id}"
 		frappe.cache().set_value(sync_key, now(), expires_in_sec=300)
 
-		# Meta data payload'u oluştur
-		meta_payload = {}
+		# Meta data payload'u oluştur (WooCommerce customers API -> meta_data array)
+		meta_entries = {
+			"twitter": getattr(customer_doc, "custom_twitter", "") or "",
+			"facebook": getattr(customer_doc, "custom_facebook", "") or "",
+			"additional_profile_urls": getattr(customer_doc, "custom_profile_url", "") or "",
+			"company_name": getattr(customer_doc, "custom_company_name", "") or "",
+			"reference": getattr(customer_doc, "custom_reference", "") or "",
+			"user_phone": getattr(customer_doc, "custom_telephone_number", "") or "",
+			"company_type": getattr(customer_doc, "custom_company_type", "") or "",
+			"steuernummer": getattr(customer_doc, "custom_tax_id_number", "") or "",
+			"umsatzsteuer": getattr(customer_doc, "custom_vat_identification", "") or "",
+			"firmenvertreter_name": getattr(customer_doc, "custom_company_representative_name", "") or "",
+			"firmenvertreter_surname": getattr(customer_doc, "custom_company_representative_surname", "") or "",
+			"firmenvertreter_phone": getattr(customer_doc, "custom_company_representative_phone", "") or "",
+			"firmenvertreter_email": getattr(customer_doc, "custom_company_representative_email", "") or "",
+			"kontaktperson__name": getattr(customer_doc, "custom_contact_person", "") or "",
+			"kontaktperson__email": getattr(customer_doc, "custom_contact_person_email", "") or "",
+			"kontaktperson__phone": getattr(customer_doc, "custom_contact_person_phone", "") or "",
+			"iban": getattr(customer_doc, "custom_iban", "") or "",
+			"bic": getattr(customer_doc, "custom_bic", "") or "",
+			"ausstellungsdatum": getattr(customer_doc, "custom_date_of_issue", "") or "",
+			"ablaufdatum": getattr(customer_doc, "custom_expiry_date", "") or "",
+			"betriebsform": getattr(customer_doc, "custom_operating_form", "") or "",
+			"address_apartment": getattr(customer_doc, "address_apartment", "") or "",
+		}
 		
-		# Sosyal medya ve profil URL'leri (boş değerler de gönderilsin)
-		meta_payload["twitter"] = getattr(customer_doc, "custom_twitter", "") or ""
-		meta_payload["facebook"] = getattr(customer_doc, "custom_facebook", "") or ""
-		meta_payload["additional_profile_urls"] = getattr(customer_doc, "custom_profile_url", "") or ""
-		
-		# Custom field'ları meta_data'ya ekle (boş değerler de gönderilsin)
-		meta_payload["company_name"] = getattr(customer_doc, "custom_company_name", "") or ""
-		meta_payload["reference"] = getattr(customer_doc, "custom_reference", "") or ""
-		meta_payload["user_phone"] = getattr(customer_doc, "custom_telephone_number", "") or ""
-		meta_payload["company_type"] = getattr(customer_doc, "custom_company_type", "") or ""
-		meta_payload["steuernummer"] = getattr(customer_doc, "custom_tax_id_number", "") or ""
-		meta_payload["umsatzsteuer"] = getattr(customer_doc, "custom_vat_identification", "") or ""
-		meta_payload["firmenvertreter_name"] = getattr(customer_doc, "custom_company_representative_name", "") or ""
-		meta_payload["firmenvertreter_surname"] = getattr(customer_doc, "custom_company_representative_surname", "") or ""
-		meta_payload["firmenvertreter_phone"] = getattr(customer_doc, "custom_company_representative_phone", "") or ""
-		meta_payload["kontaktperson__name"] = getattr(customer_doc, "custom_contact_person", "") or ""
-		meta_payload["kontaktperson__email"] = getattr(customer_doc, "custom_contact_person_email", "") or ""
-		meta_payload["kontaktperson__phone"] = getattr(customer_doc, "custom_contact_person_phone", "") or ""
-		meta_payload["iban"] = getattr(customer_doc, "custom_iban", "") or ""
-		meta_payload["bic"] = getattr(customer_doc, "custom_bic", "") or ""
-		meta_payload["ausstellungsdatum"] = getattr(customer_doc, "custom_date_of_issue", "") or ""
-		meta_payload["ablaufdatum"] = getattr(customer_doc, "custom_expiry_date", "") or ""
-		meta_payload["betriebsform"] = getattr(customer_doc, "custom_operating_form", "") or ""
-		
-		# Adres bilgilerini Address doctype'ından al (boş değerler de gönderilsin)
+		# Adres bilgilerini Address doctype'ından al
+		address_fields = {"address_street": "", "address_city": "", "address_state": "", "address_zip": "", "address_country": ""}
 		if customer_doc.customer_primary_address:
 			try:
 				address_doc = frappe.get_doc("Address", customer_doc.customer_primary_address)
-				meta_payload["address_street"] = address_doc.address_line1 or ""
-				meta_payload["address_city"] = address_doc.city or ""
-				meta_payload["address_state"] = address_doc.state or ""
-				meta_payload["address_zip"] = address_doc.pincode or ""
+				address_fields["address_street"] = address_doc.address_line1 or ""
+				address_fields["address_city"] = address_doc.city or ""
+				address_fields["address_state"] = address_doc.state or ""
+				address_fields["address_zip"] = address_doc.pincode or ""
 				if address_doc.country:
-					# Country name'ini al
 					country_name = frappe.db.get_value("Country", address_doc.country, "country_name")
-					meta_payload["address_country"] = country_name or ""
-				else:
-					meta_payload["address_country"] = ""
+					address_fields["address_country"] = country_name or ""
 			except Exception:
-				# Address bulunamazsa boş değerler gönder
-				meta_payload["address_street"] = ""
-				meta_payload["address_city"] = ""
-				meta_payload["address_state"] = ""
-				meta_payload["address_zip"] = ""
-				meta_payload["address_country"] = ""
-		else:
-			# Address yoksa boş değerler gönder
-			meta_payload["address_street"] = ""
-			meta_payload["address_city"] = ""
-			meta_payload["address_state"] = ""
-			meta_payload["address_zip"] = ""
-			meta_payload["address_country"] = ""
+				pass
+		meta_entries.update(address_fields)
 		
-		# Sonsuz döngüyü önlemek için flag ekle
-		meta_payload["erpnext_sync"] = "true"
+		meta_entries["erpnext_sync"] = "true"
 		
-		payload = {
-			"meta": meta_payload
-		}
+		meta_payload = [{"key": key, "value": value} for key, value in meta_entries.items()]
 		
-		print(f"\n\n\n DEBUG-WP-UPDATE-1 URL: {url}")
+		payload = {"meta_data": meta_payload}
+		
+		print(f"\n\n\n DEBUG-WP-UPDATE-1 URL: {customer_url}")
 		print(f"\n\n\n DEBUG-WP-UPDATE-2 Payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
 		
 		# WordPress'e PUT isteği
 		resp = requests.put(
-			url,
-			auth=(get_wp_user(), get_wp_app_key()),
+			customer_url,
+			auth=(get_consumer_key(), get_consumer_secret()),
 			json=payload,
 			headers={"Content-Type": "application/json"},
 			timeout=40,
