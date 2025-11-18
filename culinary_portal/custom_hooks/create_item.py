@@ -108,7 +108,7 @@ def _fetch_wc_customer_meta_by_email(email: str, consumer_key: str, consumer_sec
 			headers={"Content-Type": "application/json"},
 		)
 		data = resp.json()
-		print("\n\n\n\ DEBUGG---111---", resp)
+		print("\n\n\n DEBUGG---111---", resp)
 		if isinstance(data, list) and data:
 			customer = data[0]
 		elif isinstance(data, dict):
@@ -423,16 +423,35 @@ def map_item_to_woocommerce(
 	stock_uom = item_data.get("stock_uom") or (doc.stock_uom if hasattr(doc, "stock_uom") else None)
 	if stock_uom:
 		uom_meta.append({"key": "product_uom", "value": stock_uom})
+		print(f"DEBUG: product_uom eklendi: {stock_uom}")
 
 	# convertion_uom ve convertion_rate - UOM Conversion Detail'den al
 	if doc.doctype == "Item":
-		# Önce doc'tan dene
 		uoms_list = None
+		
+		# Önce doc'tan dene (child table'a doğrudan erişim)
 		if hasattr(doc, "uoms") and doc.uoms:
 			uoms_list = doc.uoms
+			print(f"DEBUG: doc.uoms bulundu, sayı: {len(uoms_list)}")
 		# Doc'ta yoksa item_data'dan dene
 		elif item_data.get("uoms"):
 			uoms_list = item_data.get("uoms")
+			print(f"DEBUG: item_data.uoms bulundu, sayı: {len(uoms_list)}")
+		# Hala yoksa veritabanından çek
+		else:
+			try:
+				item_code = item_data.get("item_code") or doc.name
+				uoms_list = frappe.db.get_all(
+					"UOM Conversion Detail",
+					filters={"parent": item_code, "parenttype": "Item"},
+					fields=["uom", "conversion_factor"],
+					order_by="idx asc",
+					limit=1
+				)
+				if uoms_list:
+					print(f"DEBUG: DB'den uoms bulundu, sayı: {len(uoms_list)}")
+			except Exception as e:
+				print(f"DEBUG: UOM DB sorgusu hatası: {e}")
 
 		if uoms_list and len(uoms_list) > 0:
 			first_uom = uoms_list[0]
@@ -450,12 +469,19 @@ def map_item_to_woocommerce(
 
 			if uom_value:
 				uom_meta.append({"key": "convertion_uom", "value": uom_value})
+				print(f"DEBUG: convertion_uom eklendi: {uom_value}")
 			if conversion_factor is not None:
 				uom_meta.append({"key": "convertion_rate", "value": str(conversion_factor)})
+				print(f"DEBUG: convertion_rate eklendi: {conversion_factor}")
+		else:
+			print("DEBUG: UOM Conversion Detail bulunamadı")
 
 	# Mevcut meta_data ile birleştir
 	if uom_meta:
 		meta_data = (meta_data or []) + uom_meta
+		print(f"DEBUG: UOM meta_data eklendi, toplam meta_data sayısı: {len(meta_data)}")
+	else:
+		print("DEBUG: UOM meta_data eklenemedi")
 
 	image_path = item_data.get("image", "") or ""
 	images = []  # Default boş array
