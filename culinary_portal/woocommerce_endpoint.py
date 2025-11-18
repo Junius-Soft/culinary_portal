@@ -208,8 +208,6 @@ def update_wordpress_user_from_customer(customer_doc):
 				pass
 		meta_entries.update(address_fields)
 		
-		meta_entries["erpnext_sync"] = "true"
-		
 		meta_payload = [{"key": key, "value": value} for key, value in meta_entries.items()]
 		
 		payload = {"meta_data": meta_payload}
@@ -553,13 +551,6 @@ def user_updated(*args, **kwargs):
 		if frappe.cache().get_value(sync_key):
 			print("\n\n\n DEBUG-UPDATE-SKIP: ERPNext kaynaklı güncelleme algılandı, webhook ignore ediliyor")
 			frappe.cache().delete_value(sync_key)
-			return Response(status=HTTPStatus.OK)
-		
-		# Sonsuz döngüyü önle: Eğer bu güncelleme ERPNext'ten geldiyse ignore et
-		meta_data = user_data.get("meta_data", [])
-		erpnext_sync = extract_meta_value(meta_data, "erpnext_sync")
-		if erpnext_sync == "true":
-			print("\n\n\n DEBUG-UPDATE-SKIP: Bu güncelleme ERPNext'ten geldi, webhook ignore ediliyor (sonsuz döngü önleme)")
 			return Response(status=HTTPStatus.OK)
 		
 		# Aynı user_id için kısa süre içinde tekrar işlem yapılmasını engelle (lock mekanizması)
