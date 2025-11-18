@@ -32,14 +32,15 @@ def extract_meta_value(meta_data, key):
 	return ""
 
 
-def map_country_name_to_code(country_name):
+def map_country_to_name(country_name):
 	"""
-	Ülke adını (örn: Deutschland) Country doctype'ındaki code'a map eder
+	Ülke adını (örn: Deutschland) veya code'unu Country doctype'ındaki name'e map eder
+	Address doctype'ında country field'ı Link olduğu için Country name'i döndürür
 	"""
 	if not country_name:
 		return None
 	
-	# Yaygın ülke adı mapping'leri
+	# Yaygın ülke adı mapping'leri (country_name -> code)
 	country_mapping = {
 		"Deutschland": "DE",
 		"Germany": "DE",
@@ -49,20 +50,29 @@ def map_country_name_to_code(country_name):
 		"USA": "US",
 	}
 	
+	country_code = None
+	
 	# Önce mapping'den kontrol et
 	if country_name in country_mapping:
 		country_code = country_mapping[country_name]
-		if frappe.db.exists("Country", {"code": country_code}):
-			return country_code
+	else:
+		# Direkt ülke adı ile ara
+		country_code = frappe.db.get_value("Country", {"country_name": country_name}, "code")
+		if not country_code:
+			# Code ile direkt ara (zaten code ise)
+			if frappe.db.exists("Country", {"code": country_name.upper()}):
+				country_code = country_name.upper()
 	
-	# Direkt ülke adı ile ara
-	country_code = frappe.db.get_value("Country", {"country_name": country_name}, "code")
+	# Code'dan Country name'ini bul
 	if country_code:
-		return country_code
+		country_name_found = frappe.db.get_value("Country", {"code": country_code}, "name")
+		if country_name_found:
+			return country_name_found
 	
-	# Code ile direkt ara (zaten code ise)
-	if frappe.db.exists("Country", {"code": country_name.upper()}):
-		return country_name.upper()
+	# Direkt country_name ile ara
+	country_name_found = frappe.db.get_value("Country", {"country_name": country_name}, "name")
+	if country_name_found:
+		return country_name_found
 	
 	return None
 
@@ -81,11 +91,14 @@ def create_or_update_address(customer_doc, meta_data):
 	if not address_street and not address_city:
 		return None
 	
-	# Country code'u bul
-	country_code = map_country_name_to_code(address_country)
-	if not country_code:
-		# Varsayılan olarak DE kullan
-		country_code = "DE"
+	# Country name'ini bul (Address'te country Link field olduğu için name gerekiyor)
+	country_name = map_country_to_name(address_country)
+	if not country_name:
+		# Varsayılan olarak Germany kullan
+		country_name = frappe.db.get_value("Country", {"code": "DE"}, "name")
+		if not country_name:
+			# Germany yoksa direkt "Germany" dene
+			country_name = frappe.db.get_value("Country", {"country_name": "Germany"}, "name")
 	
 	# Mevcut primary address'i kontrol et
 	existing_address_name = customer_doc.customer_primary_address
@@ -97,7 +110,8 @@ def create_or_update_address(customer_doc, meta_data):
 		address_doc.city = address_city
 		address_doc.state = address_state
 		address_doc.pincode = address_zip
-		address_doc.country = country_code
+		if country_name:
+			address_doc.country = country_name
 		address_doc.address_type = "Shipping"
 		address_doc.flags.ignore_permissions = True
 		address_doc.flags.ignore_validate = True
@@ -115,7 +129,8 @@ def create_or_update_address(customer_doc, meta_data):
 		address_doc.city = address_city
 		address_doc.state = address_state
 		address_doc.pincode = address_zip
-		address_doc.country = country_code
+		if country_name:
+			address_doc.country = country_name
 		address_doc.is_primary_address = 1
 		address_doc.is_shipping_address = 1
 		address_doc.append("links", {"link_doctype": "Customer", "link_name": customer_doc.name})
