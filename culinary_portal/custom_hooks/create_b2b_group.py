@@ -325,6 +325,43 @@ def handle_customer_wordpress_sync(doc, method=None):
 		)
 
 
+def handle_address_wordpress_sync(doc, method=None):
+	"""
+	Address güncellendiğinde ilgili Customer kayıtlarını WordPress ile senkronize eder.
+	"""
+	try:
+		if getattr(doc.flags, "skip_wordpress_sync", False):
+			return
+		
+		customer_links = {
+			link.link_name
+			for link in (doc.links or [])
+			if link.link_doctype == "Customer" and link.link_name
+		}
+		
+		if not customer_links:
+			return
+		
+		from culinary_portal.woocommerce_endpoint import update_wordpress_user_from_customer
+		
+		for customer_name in customer_links:
+			try:
+				customer_doc = frappe.get_doc("Customer", customer_name)
+			except frappe.DoesNotExistError:
+				continue
+			
+			if not getattr(customer_doc, "custom_portal_user_id", None):
+				continue
+			
+			update_wordpress_user_from_customer(customer_doc)
+	
+	except Exception:
+		frappe.log_error(
+			title="Address WordPress Sync Error",
+			message=frappe.get_traceback(),
+		)
+
+
 def handle_customer_on_trash(doc, method=None):
 	"""
 	Customer silindiğinde WordPress'te user ve B2B Group'u da siler.

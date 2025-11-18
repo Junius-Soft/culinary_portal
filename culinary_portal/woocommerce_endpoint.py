@@ -116,6 +116,7 @@ def create_or_update_address(customer_doc, meta_data):
 		if country_name:
 			address_doc.country = country_name
 		address_doc.address_type = "Shipping"
+		address_doc.flags.skip_wordpress_sync = True
 		address_doc.flags.ignore_permissions = True
 		address_doc.flags.ignore_validate = True
 		address_doc.flags.ignore_mandatory = True
@@ -137,6 +138,7 @@ def create_or_update_address(customer_doc, meta_data):
 		address_doc.is_primary_address = 1
 		address_doc.is_shipping_address = 1
 		address_doc.append("links", {"link_doctype": "Customer", "link_name": customer_doc.name})
+		address_doc.flags.skip_wordpress_sync = True
 		address_doc.flags.ignore_permissions = True
 		address_doc.flags.ignore_validate = True
 		address_doc.flags.ignore_mandatory = True
