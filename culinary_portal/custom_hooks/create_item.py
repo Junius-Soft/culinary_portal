@@ -303,6 +303,7 @@ def collect_customer_b2bking_groups_for_item(item_code: str) -> dict:
 def sync_item_price_to_woocommerce(item_code: str, price_list_name: str):
     """Item Price değişikliğini WooCommerce'e senkronize eder (queue'da çalışır)"""
     try:
+        print(f"DEBUG: sync_item_price_to_woocommerce başladı - Item: {item_code}, Price List: {price_list_name}")
         frappe.set_user("Administrator")
         
         # Item'ın WooCommerce ID'si yoksa işlem yapma
@@ -327,7 +328,9 @@ def sync_item_price_to_woocommerce(item_code: str, price_list_name: str):
         
         # WooCommerce'e gönder
         send_to_woocommerce(wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
+        print(f"DEBUG: sync_item_price_to_woocommerce tamamlandı - Item: {item_code}")
     except Exception as e:
+        print(f"ERROR: sync_item_price_to_woocommerce hatası - Item: {item_code}, Error: {str(e)}")
         frappe.log_error(
             title="Item Price Sync Error",
             message=f"Item: {item_code}, Price List: {price_list_name}\n{frappe.get_traceback()}"
@@ -337,6 +340,7 @@ def sync_item_price_to_woocommerce(item_code: str, price_list_name: str):
 def sync_item_to_woocommerce(item_code: str):
     """Item'ı WooCommerce'e senkronize eder (queue'da çalışır)"""
     try:
+        print(f"DEBUG: sync_item_to_woocommerce başladı - Item: {item_code}")
         frappe.set_user("Administrator")
         
         # Item'ı yükle
@@ -344,6 +348,7 @@ def sync_item_to_woocommerce(item_code: str):
         
         # Sync tarafından oluşturulan/güncellenen kayıtları atla
         if getattr(doc.flags, "created_by_sync", None):
+            print(f"DEBUG: Item {item_code} created_by_sync flag'i var, atlanıyor")
             return
         
         payload = doc.as_dict()
@@ -352,7 +357,7 @@ def sync_item_to_woocommerce(item_code: str):
         
         # Item değişikliği ise - normal akış
         base_url = get_base_url()
-        print("\n\n\n DEBUG:0 base_url", base_url)
+        print(f"DEBUG: base_url: {base_url}")
 
         # Item'ın WooCommerce ID'sini kontrol et
         existing_wc_id = None
@@ -380,7 +385,7 @@ def sync_item_to_woocommerce(item_code: str):
 
         # Standard Selling fiyat kontrolü
         standard_price = _get_standard_selling_price(item_code)
-        print("\n\n\n DEBUG:1 standard_price", standard_price)
+        print(f"DEBUG: standard_price: {standard_price}")
         
         # Status belirleme: disabled durumuna göre
         if payload.get("disabled", 0) == 1:
@@ -411,7 +416,9 @@ def sync_item_to_woocommerce(item_code: str):
 
         # WooCommerce'e gönder
         send_to_woocommerce(wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
+        print(f"DEBUG: sync_item_to_woocommerce tamamlandı - Item: {item_code}")
     except Exception as e:
+        print(f"ERROR: sync_item_to_woocommerce hatası - Item: {item_code}, Error: {str(e)}")
         frappe.log_error(
             title="Item Sync Error",
             message=f"Item: {item_code}\n{frappe.get_traceback()}"
@@ -437,6 +444,7 @@ def handle_item_saved(doc, method=None):
         item_code = doc.item_code
         price_list_name = doc.price_list
         
+        print(f"DEBUG: Item Price queue'ya ekleniyor - Item: {item_code}, Price List: {price_list_name}")
         frappe.enqueue(
             "culinary_portal.custom_hooks.create_item.sync_item_price_to_woocommerce",
             item_code=item_code,
@@ -444,20 +452,23 @@ def handle_item_saved(doc, method=None):
             queue="default",
             timeout=300,
             job_id=f"sync_item_price_{item_code}_{price_list_name}",
-            deduplicate=True
+            deduplicate=True,
+            enqueue_after_commit=True
         )
         return
 
     # Item değişikliği ise - queue'ya al
     item_code = doc.name if hasattr(doc, 'name') else doc.item_code
     
+    print(f"DEBUG: Item queue'ya ekleniyor - Item: {item_code}")
     frappe.enqueue(
         "culinary_portal.custom_hooks.create_item.sync_item_to_woocommerce",
         item_code=item_code,
         queue="default",
         timeout=300,
         job_id=f"sync_item_{item_code}",
-        deduplicate=True
+        deduplicate=True,
+        enqueue_after_commit=True
     )
     
     frappe.msgprint(frappe._("Item sync işlemi kuyruğa eklendi"))
