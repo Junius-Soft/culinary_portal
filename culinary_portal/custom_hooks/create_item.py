@@ -116,7 +116,7 @@ def _fetch_wc_customer_meta_by_email(email: str, consumer_key: str, consumer_sec
             headers={"Content-Type": "application/json"},
         )
         data = resp.json()
-        print("\n\n\n\ DEBUGG---111---",resp)
+        print("\n\n\n DEBUGG---111---", resp)
         if isinstance(data, list) and data:
             customer = data[0]
         elif isinstance(data, dict):
