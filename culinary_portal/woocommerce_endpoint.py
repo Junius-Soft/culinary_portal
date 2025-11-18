@@ -153,6 +153,17 @@ def update_wordpress_user(user_id, customer_doc, meta_data):
 		# Meta data payload'u oluştur
 		meta_payload = {}
 		
+		# Ana alanlar (role, username direkt user_data'ya gönderilir, meta_data'ya değil)
+		# WordPress API'de role ve username direkt user object'inde, meta_data'da değil
+		
+		# Sosyal medya ve profil URL'leri
+		if customer_doc.custom_twitter:
+			meta_payload["twitter"] = customer_doc.custom_twitter
+		if customer_doc.custom_facebook:
+			meta_payload["facebook"] = customer_doc.custom_facebook
+		if customer_doc.custom_profile_url:
+			meta_payload["additional_profile_urls"] = customer_doc.custom_profile_url
+		
 		# Custom field'ları meta_data'ya ekle
 		if customer_doc.custom_company_name:
 			meta_payload["company_name"] = customer_doc.custom_company_name
@@ -248,8 +259,17 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	"""
 	WordPress user data'sını Customer doc'a map eder
 	"""
+	# Ana alanlar (user_data'dan direkt)
+	customer_doc.custom_role = user_data.get("role", "")
+	customer_doc.custom_username = user_data.get("username", "")
+	
 	# Meta data alanları
 	meta_data = user_data.get("meta_data", [])
+	
+	# Meta data'dan sosyal medya ve profil URL'leri
+	customer_doc.custom_twitter = extract_meta_value(meta_data, "twitter")
+	customer_doc.custom_facebook = extract_meta_value(meta_data, "facebook")
+	customer_doc.custom_profile_url = extract_meta_value(meta_data, "additional_profile_urls")
 	
 	# İngilizce custom field'lar (resimdeki alan isimleri)
 	customer_doc.custom_company_name = extract_meta_value(meta_data, "company_name")
