@@ -554,12 +554,26 @@ def user_updated(*args, **kwargs):
 			print("\n\n\n DEBUG-UPDATE-3.1 İlk test isteği (webhook_id), başarılı kabul edildi")
 			return Response(status=HTTPStatus.OK)
 		
+		user_id = user_data.get("id")
+		if not user_id:
+			print("\n\n\n DEBUG-UPDATE-ERROR: User ID bulunamadı!")
+			return Response(response=_("User ID not found"), status=HTTPStatus.BAD_REQUEST)
+		
 		# Sonsuz döngüyü önle: Eğer bu güncelleme ERPNext'ten geldiyse ignore et
 		meta_data = user_data.get("meta_data", [])
 		erpnext_sync = extract_meta_value(meta_data, "erpnext_sync")
 		if erpnext_sync == "true":
 			print("\n\n\n DEBUG-UPDATE-SKIP: Bu güncelleme ERPNext'ten geldi, webhook ignore ediliyor (sonsuz döngü önleme)")
 			return Response(status=HTTPStatus.OK)
+		
+		# Aynı user_id için kısa süre içinde tekrar işlem yapılmasını engelle (lock mekanizması)
+		lock_key = f"user_update_lock_{user_id}"
+		if frappe.cache().get_value(lock_key):
+			print(f"\n\n\n DEBUG-UPDATE-SKIP: User {user_id} için işlem zaten devam ediyor, webhook ignore ediliyor")
+			return Response(status=HTTPStatus.OK)
+		
+		# Lock'u set et (30 saniye - WordPress webhook'un gelmesi için yeterli süre)
+		frappe.cache().set_value(lock_key, "processing", expires_in_sec=30)
 		
 		try:
 			# Ortak fonksiyon ile Customer oluştur/güncelle (is_new_customer=False → B2B hook atlanacak)
@@ -576,6 +590,10 @@ def user_updated(*args, **kwargs):
 				message=frappe.get_traceback()
 			)
 			return Response(response=_("Internal Server Error"), status=HTTPStatus.INTERNAL_SERVER_ERROR)
+		finally:
+			# Lock'u temizle
+			if user_id:
+				frappe.cache().delete_value(lock_key)
 	else:
 		print("\n\n\n DEBUG-UPDATE-ERROR: Request data bulunamadı!")
 		return Response(response=_("No data received"), status=HTTPStatus.BAD_REQUEST)
