@@ -143,18 +143,24 @@ def create_or_update_address(customer_doc, meta_data):
 		return address_doc.name
 
 
-def update_wordpress_user(user_id, customer_doc, meta_data):
+def update_wordpress_user_from_customer(customer_doc):
 	"""
 	ERPNext'teki Customer verilerini WordPress user'a PUT isteği ile gönderir
+	Customer save hook'undan çağrılır
 	"""
+	# WordPress'e göndermeyi atla flag'i kontrol et
+	if getattr(customer_doc.flags, "skip_wordpress_sync", False):
+		return False
+	
+	portal_user_id = getattr(customer_doc, "custom_portal_user_id", None)
+	if not portal_user_id:
+		return False
+	
 	try:
-		url = f"{get_wo_url()}/wp-json/wp/v2/users/{user_id}"
+		url = f"{get_wo_url()}/wp-json/wp/v2/users/{portal_user_id}"
 		
 		# Meta data payload'u oluştur
 		meta_payload = {}
-		
-		# Ana alanlar (role, username direkt user_data'ya gönderilir, meta_data'ya değil)
-		# WordPress API'de role ve username direkt user object'inde, meta_data'da değil
 		
 		# Sosyal medya ve profil URL'leri
 		if customer_doc.custom_twitter:
@@ -200,23 +206,22 @@ def update_wordpress_user(user_id, customer_doc, meta_data):
 		if customer_doc.custom_operating_form:
 			meta_payload["betriebsform"] = customer_doc.custom_operating_form
 		
-		# Adres bilgilerini ekle
-		address_street = extract_meta_value(meta_data, "address_street")
-		address_city = extract_meta_value(meta_data, "address_city")
-		address_state = extract_meta_value(meta_data, "address_state")
-		address_zip = extract_meta_value(meta_data, "address_zip")
-		address_country = extract_meta_value(meta_data, "address_country")
-		
-		if address_street:
-			meta_payload["address_street"] = address_street
-		if address_city:
-			meta_payload["address_city"] = address_city
-		if address_state:
-			meta_payload["address_state"] = address_state
-		if address_zip:
-			meta_payload["address_zip"] = address_zip
-		if address_country:
-			meta_payload["address_country"] = address_country
+		# Adres bilgilerini Address doctype'ından al
+		if customer_doc.customer_primary_address:
+			address_doc = frappe.get_doc("Address", customer_doc.customer_primary_address)
+			if address_doc.address_line1:
+				meta_payload["address_street"] = address_doc.address_line1
+			if address_doc.city:
+				meta_payload["address_city"] = address_doc.city
+			if address_doc.state:
+				meta_payload["address_state"] = address_doc.state
+			if address_doc.pincode:
+				meta_payload["address_zip"] = address_doc.pincode
+			if address_doc.country:
+				# Country name'ini al
+				country_name = frappe.db.get_value("Country", address_doc.country, "country_name")
+				if country_name:
+					meta_payload["address_country"] = country_name
 		
 		# Sonsuz döngüyü önlemek için flag ekle
 		meta_payload["erpnext_sync"] = "true"
@@ -241,12 +246,12 @@ def update_wordpress_user(user_id, customer_doc, meta_data):
 		print(f"\n\n\n DEBUG-WP-UPDATE-4 Response: {resp.text}")
 		
 		if resp.status_code in (200, 201):
-			print(f"\n\n\n DEBUG-WP-UPDATE-5 WordPress user {user_id} başarıyla güncellendi")
+			print(f"\n\n\n DEBUG-WP-UPDATE-5 WordPress user {portal_user_id} başarıyla güncellendi")
 			return True
 		else:
 			frappe.log_error(
 				title="WordPress User Update Error",
-				message=f"User ID: {user_id}\nStatus: {resp.status_code}\nResponse: {resp.text}",
+				message=f"User ID: {portal_user_id}\nStatus: {resp.status_code}\nResponse: {resp.text}",
 			)
 			return False
 			
@@ -339,6 +344,8 @@ def create_or_update_customer(user_data, is_new_customer=False):
 		
 		# B2B Group hook'unu atla (sadece yeni customer'da çalışsın)
 		customer_doc.flags.skip_b2b_group_hook = True
+		# WordPress'e göndermeyi atla (webhook'tan geldiği için)
+		customer_doc.flags.skip_wordpress_sync = True
 		customer_doc.flags.ignore_permissions = True
 		customer_doc.flags.ignore_validate = True
 		customer_doc.flags.ignore_mandatory = True
@@ -371,11 +378,8 @@ def create_or_update_customer(user_data, is_new_customer=False):
 		
 		print(f"\n\n\n DEBUG-COMMON-3 Customer güncellendi: {existing_customer}")
 		
-		# WordPress'e PUT isteği ile güncelleme gönder
-		if user_id:
-			# Customer'ı son halini almak için reload et
-			customer_doc.reload()
-			update_wordpress_user(user_id, customer_doc, meta_data)
+		# WordPress'e PUT isteği gönderme - sonsuz döngüyü önlemek için kaldırıldı
+		# WordPress'ten ERPNext'e tek yönlü senkronizasyon yeterli
 		
 		return existing_customer, "güncellendi"
 	else:
@@ -397,6 +401,8 @@ def create_or_update_customer(user_data, is_new_customer=False):
 		customer_doc.flags.ignore_validate = True
 		customer_doc.flags.ignore_mandatory = True
 		customer_doc.flags.ignore_links = True
+		# WordPress'e göndermeyi atla (webhook'tan geldiği için)
+		customer_doc.flags.skip_wordpress_sync = True
 		
 		# YENİ customer için B2B Group hook'u çalışacak mı?
 		if not is_new_customer:
@@ -423,11 +429,8 @@ def create_or_update_customer(user_data, is_new_customer=False):
 			customer_doc.save(ignore_permissions=True)
 			frappe.db.commit()
 		
-		# WordPress'e PUT isteği ile güncelleme gönder
-		if user_id:
-			# Customer'ı son halini almak için reload et
-			customer_doc.reload()
-			update_wordpress_user(user_id, customer_doc, meta_data)
+		# WordPress'e PUT isteği gönderme - sonsuz döngüyü önlemek için kaldırıldı
+		# WordPress'ten ERPNext'e tek yönlü senkronizasyon yeterli
 		
 		return customer_doc.name, "oluşturuldu"
 

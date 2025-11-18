@@ -7,6 +7,9 @@ from culinary_portal.custom_hooks.create_item import (
     get_wp_user,
     get_wp_app_key
 )
+from culinary_portal.culinary_portal.woocommerce_endpoint import (
+    update_wordpress_user_from_customer
+)
 
 
 def delete_wp_user(portal_user_id: int) -> bool:
@@ -295,11 +298,36 @@ def handle_customer_b2b_group(doc, method=None):
         )
 
 
+def handle_customer_wordpress_sync(doc, method=None):
+	"""
+	Customer kaydedildiğinde WordPress user'ı günceller.
+	Hook tarafından çağrılır.
+	"""
+	try:
+		# WordPress webhook update'lerinde atla
+		if getattr(doc.flags, "skip_wordpress_sync", False):
+			return
+		
+		# Flag kontrolü - tekrar çalışmasını önle
+		if getattr(doc.flags, "culinary_wordpress_sync_ran", False):
+			return
+		doc.flags.culinary_wordpress_sync_ran = True
+		
+		# WordPress'e güncelleme gönder
+		update_wordpress_user_from_customer(doc)
+		
+	except Exception:
+		frappe.log_error(
+			title="Customer WordPress Sync Error",
+			message=frappe.get_traceback(),
+		)
+
+
 def handle_customer_on_trash(doc, method=None):
-    """
-    Customer silindiğinde WordPress'te user ve B2B Group'u da siler.
-    Hook tarafından çağrılır.
-    """
+	"""
+	Customer silindiğinde WordPress'te user ve B2B Group'u da siler.
+	Hook tarafından çağrılır.
+	"""
     try:
         # Flag kontrolü - tekrar çalışmasını önle
         if getattr(doc.flags, "wp_delete_sync_ran", False):

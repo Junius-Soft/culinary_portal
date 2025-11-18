@@ -11,10 +11,10 @@ app_license = "mit"
 fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Culinary Portal"]]},
     # {"dt": "Client Script", "filters": [["module", "=", "Culinary Portal"]]},
-    {"dt": "Item Group"},
-    {"dt": "Item"},
-    {"dt": "Supplier"},
-    {"dt": "Customer"},
+    # {"dt": "Item Group"},
+    # {"dt": "Item"},
+    # {"dt": "Supplier"},
+    # {"dt": "Customer"},
 ]
 
 # required_apps = []
@@ -59,7 +59,8 @@ fixtures = [
 
 doctype_js = {
 	"Item": "public/js/item.js",
-	"Supplier": "public/js/supplier.js"
+	"Supplier": "public/js/supplier.js",
+	"Customer": "public/js/customer.js"
 }
 
 doctype_list_js = {
@@ -169,11 +170,11 @@ doc_events = {
 		"on_update": "culinary_portal.custom_hooks.create_item.handle_item_saved",
 		"on_trash": "culinary_portal.custom_hooks.delete_item.handle_item_deleted",
 	},
- 	"Item Price": {
+	"Item Price": {
 		# "after_insert": "culinary_portal.custom_hooks.create_item.handle_item_saved",
 		"on_update": "culinary_portal.custom_hooks.create_item.handle_item_saved",
 	},
-   	"Item Group": {
+	"Item Group": {
 		"on_update": "culinary_portal.custom_hooks.create_category.handle_item_group_after_insert",
 		"after_rename": "culinary_portal.custom_hooks.create_category.handle_item_group_after_insert",
 		"on_trash": "culinary_portal.custom_hooks.create_category.handle_item_group_on_trash",
@@ -184,7 +185,10 @@ doc_events = {
 		"on_trash": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_on_trash",
 	},
 	"Customer": {
-		"on_update": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_b2b_group",
+		"on_update": [
+			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_b2b_group",
+			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_wordpress_sync",
+		],
 		"on_trash": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_on_trash",
 	},
 	"Agreement": {
