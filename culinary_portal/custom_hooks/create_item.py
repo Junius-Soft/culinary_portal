@@ -547,13 +547,21 @@ def map_item_to_woocommerce(
 			images = []  # Boş array göndererek WooCommerce'deki görseli sil
 		else:
 			# Public file - WooCommerce'e gönder
+			# Eğer image_path zaten tam URL ise (http:// veya https:// ile başlıyorsa), base_url ekleme
+			if image_path.startswith(("http://", "https://")):
+				image_url = image_path
+			else:
+				# Sadece path ise, base_url ekle
+				image_url = f"{base_url}{image_path}"
+			
 			images = [
 				{
-					"src": f"{base_url}{image_path}",
+					"src": image_url,
 					"name": item_data.get("item_name", ""),
 					"alt": item_data.get("item_name", ""),
 				}
 			]
+			print(f"DEBUG: Image URL: {image_url}")
 
 	# Categories başlangıcı - Item Group categories'ini ekle
 	categories = []
