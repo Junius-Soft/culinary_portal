@@ -231,6 +231,82 @@ def collect_customer_b2bking_group_for_price_list(item_code: str, price_list_nam
 	return {"meta_data": meta_data}
 
 
+def get_uom_meta_data(item_code: str, item_data: dict | None = None, doc=None) -> list[dict]:
+	"""Item için UOM meta_data bilgilerini döndürür"""
+	uom_meta = []
+	
+	if not item_code:
+		return uom_meta
+	
+	# product_uom - stock_uom değerini gönder
+	stock_uom = None
+	if doc and hasattr(doc, "stock_uom"):
+		stock_uom = doc.stock_uom
+	elif item_data:
+		stock_uom = item_data.get("stock_uom")
+	else:
+		# Veritabanından al
+		try:
+			stock_uom = frappe.db.get_value("Item", item_code, "stock_uom")
+		except Exception:
+			pass
+	
+	if stock_uom:
+		uom_meta.append({"key": "product_uom", "value": stock_uom})
+		print(f"DEBUG: product_uom eklendi: {stock_uom}")
+	
+	# convertion_uom ve convertion_rate - UOM Conversion Detail'den al
+	uoms_list = None
+	
+	# Önce doc'tan dene (child table'a doğrudan erişim)
+	if doc and hasattr(doc, "uoms") and doc.uoms:
+		uoms_list = doc.uoms
+		print(f"DEBUG: doc.uoms bulundu, sayı: {len(uoms_list)}")
+	# Doc'ta yoksa item_data'dan dene
+	elif item_data and item_data.get("uoms"):
+		uoms_list = item_data.get("uoms")
+		print(f"DEBUG: item_data.uoms bulundu, sayı: {len(uoms_list)}")
+	# Hala yoksa veritabanından çek
+	else:
+		try:
+			uoms_list = frappe.db.get_all(
+				"UOM Conversion Detail",
+				filters={"parent": item_code, "parenttype": "Item"},
+				fields=["uom", "conversion_factor"],
+				order_by="idx asc",
+				limit=1
+			)
+			if uoms_list:
+				print(f"DEBUG: DB'den uoms bulundu, sayı: {len(uoms_list)}")
+		except Exception as e:
+			print(f"DEBUG: UOM DB sorgusu hatası: {e}")
+	
+	if uoms_list and len(uoms_list) > 0:
+		first_uom = uoms_list[0]
+		# Dict veya object olabilir
+		uom_value = (
+			first_uom.get("uom")
+			if isinstance(first_uom, dict)
+			else (first_uom.uom if hasattr(first_uom, "uom") else None)
+		)
+		conversion_factor = (
+			first_uom.get("conversion_factor")
+			if isinstance(first_uom, dict)
+			else (first_uom.conversion_factor if hasattr(first_uom, "conversion_factor") else None)
+		)
+		
+		if uom_value:
+			uom_meta.append({"key": "convertion_uom", "value": uom_value})
+			print(f"DEBUG: convertion_uom eklendi: {uom_value}")
+		if conversion_factor is not None:
+			uom_meta.append({"key": "convertion_rate", "value": str(conversion_factor)})
+			print(f"DEBUG: convertion_rate eklendi: {conversion_factor}")
+	else:
+		print("DEBUG: UOM Conversion Detail bulunamadı")
+	
+	return uom_meta
+
+
 def collect_customer_b2bking_groups_for_item(item_code: str) -> dict:
 	"""Tüm müşteriler için, müşteri adıyla aynı Price List'ten bu ürüne ait fiyatı bulur;
 	Woo'dan alınan b2bking group id ile birleştirip tek {"meta_data": [...]} döndürür.
@@ -325,8 +401,16 @@ def handle_item_saved(doc, method=None):
 		aggregated = collect_customer_b2bking_group_for_price_list(item_code, price_list_name)
 		dynamic_meta = aggregated.get("meta_data", []) if isinstance(aggregated, dict) else []
 
+		# UOM bilgilerini de ekle
+		item_doc = frappe.get_doc("Item", item_code)
+		uom_meta = get_uom_meta_data(item_code, item_data=item_doc.as_dict(), doc=item_doc)
+		if uom_meta:
+			# Mevcut meta_data ile birleştir (UOM bilgileri önce, B2B group bilgileri sonra)
+			dynamic_meta = uom_meta + dynamic_meta
+			print(f"DEBUG: Item Price güncellemesi - UOM meta_data eklendi, toplam: {len(dynamic_meta)}")
+
 		if not dynamic_meta:
-			print(f"DEBUG: No B2B group found for price list: {price_list_name}")
+			print(f"DEBUG: No meta_data found for price list: {price_list_name}")
 			return
 
 		# Sadece meta_data güncellemesi için payload
@@ -417,64 +501,8 @@ def map_item_to_woocommerce(
 	print("\n\n\n DEBUG:1 DOC NAME", doc)
 
 	# UOM bilgilerini meta_data'ya ekle
-	uom_meta = []
-
-	# product_uom - stock_uom değerini gönder
-	stock_uom = item_data.get("stock_uom") or (doc.stock_uom if hasattr(doc, "stock_uom") else None)
-	if stock_uom:
-		uom_meta.append({"key": "product_uom", "value": stock_uom})
-		print(f"DEBUG: product_uom eklendi: {stock_uom}")
-
-	# convertion_uom ve convertion_rate - UOM Conversion Detail'den al
-	if doc.doctype == "Item":
-		uoms_list = None
-		
-		# Önce doc'tan dene (child table'a doğrudan erişim)
-		if hasattr(doc, "uoms") and doc.uoms:
-			uoms_list = doc.uoms
-			print(f"DEBUG: doc.uoms bulundu, sayı: {len(uoms_list)}")
-		# Doc'ta yoksa item_data'dan dene
-		elif item_data.get("uoms"):
-			uoms_list = item_data.get("uoms")
-			print(f"DEBUG: item_data.uoms bulundu, sayı: {len(uoms_list)}")
-		# Hala yoksa veritabanından çek
-		else:
-			try:
-				item_code = item_data.get("item_code") or doc.name
-				uoms_list = frappe.db.get_all(
-					"UOM Conversion Detail",
-					filters={"parent": item_code, "parenttype": "Item"},
-					fields=["uom", "conversion_factor"],
-					order_by="idx asc",
-					limit=1
-				)
-				if uoms_list:
-					print(f"DEBUG: DB'den uoms bulundu, sayı: {len(uoms_list)}")
-			except Exception as e:
-				print(f"DEBUG: UOM DB sorgusu hatası: {e}")
-
-		if uoms_list and len(uoms_list) > 0:
-			first_uom = uoms_list[0]
-			# Dict veya object olabilir
-			uom_value = (
-				first_uom.get("uom")
-				if isinstance(first_uom, dict)
-				else (first_uom.uom if hasattr(first_uom, "uom") else None)
-			)
-			conversion_factor = (
-				first_uom.get("conversion_factor")
-				if isinstance(first_uom, dict)
-				else (first_uom.conversion_factor if hasattr(first_uom, "conversion_factor") else None)
-			)
-
-			if uom_value:
-				uom_meta.append({"key": "convertion_uom", "value": uom_value})
-				print(f"DEBUG: convertion_uom eklendi: {uom_value}")
-			if conversion_factor is not None:
-				uom_meta.append({"key": "convertion_rate", "value": str(conversion_factor)})
-				print(f"DEBUG: convertion_rate eklendi: {conversion_factor}")
-		else:
-			print("DEBUG: UOM Conversion Detail bulunamadı")
+	item_code = item_data.get("item_code") or (doc.name if doc else None)
+	uom_meta = get_uom_meta_data(item_code, item_data=item_data, doc=doc)
 
 	# Mevcut meta_data ile birleştir
 	if uom_meta:
