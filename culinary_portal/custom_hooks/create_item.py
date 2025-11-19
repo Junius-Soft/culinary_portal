@@ -405,8 +405,21 @@ def handle_item_saved(doc, method=None):
 		item_doc = frappe.get_doc("Item", item_code)
 		uom_meta = get_uom_meta_data(item_code, item_data=item_doc.as_dict(), doc=item_doc)
 		if uom_meta:
-			# Mevcut meta_data ile birleştir (UOM bilgileri önce, B2B group bilgileri sonra)
-			dynamic_meta = uom_meta + dynamic_meta
+			# Mevcut meta_data'yı dict'e çevir (duplicate key kontrolü için)
+			meta_dict = {}
+			for m in dynamic_meta:
+				key = m.get("key")
+				if key:
+					meta_dict[key] = m
+			
+			# UOM meta_data'larını ekle (varsa üzerine yaz)
+			for uom_item in uom_meta:
+				key = uom_item.get("key")
+				if key:
+					meta_dict[key] = uom_item
+			
+			# Dict'i tekrar listeye çevir
+			dynamic_meta = list(meta_dict.values())
 			print(f"DEBUG: Item Price güncellemesi - UOM meta_data eklendi, toplam: {len(dynamic_meta)}")
 
 		if not dynamic_meta:
@@ -504,9 +517,23 @@ def map_item_to_woocommerce(
 	item_code = item_data.get("item_code") or (doc.name if doc else None)
 	uom_meta = get_uom_meta_data(item_code, item_data=item_data, doc=doc)
 
-	# Mevcut meta_data ile birleştir
+	# Mevcut meta_data ile birleştir (duplicate key kontrolü ile)
 	if uom_meta:
-		meta_data = (meta_data or []) + uom_meta
+		# Mevcut meta_data'yı dict'e çevir (key bazlı erişim için)
+		meta_dict = {}
+		for m in (meta_data or []):
+			key = m.get("key")
+			if key:
+				meta_dict[key] = m
+		
+		# UOM meta_data'larını ekle (varsa üzerine yaz)
+		for uom_item in uom_meta:
+			key = uom_item.get("key")
+			if key:
+				meta_dict[key] = uom_item
+		
+		# Dict'i tekrar listeye çevir
+		meta_data = list(meta_dict.values())
 		print(f"DEBUG: UOM meta_data eklendi, toplam meta_data sayısı: {len(meta_data)}")
 	else:
 		print("DEBUG: UOM meta_data eklenemedi")
@@ -694,6 +721,16 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 				print(f"DEBUG: UOM meta_data'ları payload'da: {uom_metas}")
 			else:
 				print("DEBUG: UYARI - UOM meta_data'ları payload'da bulunamadı!")
+			
+			# Duplicate key kontrolü
+			keys = [m.get("key") for m in payload.get("meta_data", []) if m.get("key")]
+			duplicate_keys = [k for k in keys if keys.count(k) > 1]
+			if duplicate_keys:
+				print(f"⚠️ UYARI - Duplicate key'ler bulundu: {set(duplicate_keys)}")
+		
+		# Payload'ı logla (sadece meta_data varsa)
+		if len(payload) == 1 and "meta_data" in payload:
+			print(f"DEBUG: Payload (meta_data only): {json.dumps(payload, indent=2, ensure_ascii=False)[:500]}")
 
 		# ID varsa güncelle, yoksa yeni oluştur
 		if existing_wc_id:
@@ -754,9 +791,17 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 			# frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 			print("\n\n\n DEBUG:2 wc_product_id", payload)
 		else:
+			# Hata detaylarını logla
+			error_message = f"Status: {response.status_code}\nResponse: {response.text}"
+			print(f"❌ Portal API Hatası: {error_message}")
+			try:
+				error_json = response.json()
+				print(f"DEBUG: Hata detayları (JSON): {json.dumps(error_json, indent=2, ensure_ascii=False)}")
+			except Exception:
+				pass
 			frappe.log_error(
 				title="Portal API Error",
-				message=f"Status: {response.status_code}\nResponse: {response.text}",
+				message=error_message,
 			)
 
 	except Exception as e:
