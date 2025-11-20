@@ -205,29 +205,21 @@ def _create_agreement(customer_name, supplier_name):
 		agreement_doc.discount_rate = 20
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-5 Agreement doc oluşturuldu")
+		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-6 Supplier seçildi, otomatik item'lar eklenecek")
 		
-		# Agreement items zorunlu olduğu için dummy item ekle
-		# En az bir item bulmaya çalış
-		item = frappe.db.get_value("Item", {"disabled": 0}, "name")
-		
-		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-6 Item bulundu: {item}")
-		
-		if item:
-			agreement_doc.append("agreement_items", {
-				"item_code": item,
-				"price_list_rate": 0.01  # Minimum değer
-			})
-			print(f"\n\n\n DEBUG-AGREEMENT-CREATE-7 Agreement item eklendi: {item}")
-		else:
-			# Item yoksa validation'ı bypass et
-			agreement_doc.flags.ignore_validate = True
-			agreement_doc.flags.ignore_mandatory = True
-			print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8 Item bulunamadı, validation bypass edildi")
-		
+		# Agreement items zorunlu olduğu için validation'ı bypass et
+		# Supplier seçildiğinde otomatik olarak o supplier'a ait ürünler eklenecek
 		agreement_doc.flags.ignore_permissions = True
+		agreement_doc.flags.ignore_validate = True
+		agreement_doc.flags.ignore_mandatory = True
 		
-		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-9 Agreement insert ediliyor...")
+		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-7 Agreement insert ediliyor (validation bypass)...")
 		agreement_doc.insert(ignore_permissions=True)
+		
+		# Agreement oluşturulduktan sonra supplier'a ait ürünler otomatik eklenecek
+		# Bu yüzden hiçbir item eklemiyoruz
+		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8 Agreement insert edildi, supplier'a ait ürünler otomatik eklenecek")
+		
 		frappe.db.commit()
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-10 Agreement başarıyla oluşturuldu: {agreement_doc.name}")
