@@ -205,20 +205,42 @@ def _create_agreement(customer_name, supplier_name):
 		agreement_doc.discount_rate = 20
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-5 Agreement doc oluşturuldu")
-		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-6 Supplier seçildi, otomatik item'lar eklenecek")
 		
-		# Agreement items zorunlu olduğu için validation'ı bypass et
-		# Supplier seçildiğinde otomatik olarak o supplier'a ait ürünler eklenecek
+		# Supplier'a ait ürünleri al ve Agreement Items'a ekle
+		from culinary_order_management.culinary_order_management.culinary_order_management.agreement import get_supplier_items_with_standard_prices
+		
+		# Currency'yi al (supplier'dan veya company'den)
+		supplier_currency = frappe.db.get_value("Supplier", supplier_name, "default_currency")
+		if not supplier_currency:
+			company_currency = frappe.db.get_value("Company", {"is_group": 0}, "default_currency")
+			currency = company_currency or "EUR"
+		else:
+			currency = supplier_currency
+		
+		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-6 Supplier'a ait ürünler alınıyor (currency: {currency})...")
+		supplier_items = get_supplier_items_with_standard_prices(supplier_name, currency)
+		
+		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-7 {len(supplier_items)} ürün bulundu")
+		
+		# Her ürünü Agreement Items'a ekle
+		for item_data in supplier_items:
+			agreement_doc.append("agreement_items", {
+				"item_code": item_data.get("item_code"),
+				"item_name": item_data.get("item_name"),
+				"item_group": item_data.get("item_group"),
+				"kitchen_item": item_data.get("kitchen_item", 0),
+				"uom": item_data.get("uom"),
+				"standard_selling_rate": item_data.get("standard_selling_rate", 0),
+				"price_list_rate": item_data.get("price_list_rate", 0),
+				"currency": item_data.get("currency", currency)
+			})
+		
+		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8 {len(agreement_doc.agreement_items)} ürün Agreement Items'a eklendi")
+		
 		agreement_doc.flags.ignore_permissions = True
-		agreement_doc.flags.ignore_validate = True
-		agreement_doc.flags.ignore_mandatory = True
 		
-		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-7 Agreement insert ediliyor (validation bypass)...")
+		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-9 Agreement insert ediliyor...")
 		agreement_doc.insert(ignore_permissions=True)
-		
-		# Agreement oluşturulduktan sonra supplier'a ait ürünler otomatik eklenecek
-		# Bu yüzden hiçbir item eklemiyoruz
-		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8 Agreement insert edildi, supplier'a ait ürünler otomatik eklenecek")
 		
 		frappe.db.commit()
 		
