@@ -207,7 +207,7 @@ def _create_agreement(customer_name, supplier_name):
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-5 Agreement doc oluşturuldu")
 		
 		# Supplier'a ait ürünleri al ve Agreement Items'a ekle
-		from culinary_order_management.culinary_order_management.culinary_order_management.agreement import get_supplier_items_with_standard_prices
+		from culinary_order_management.culinary_order_management.agreement import get_supplier_items_with_standard_prices
 		
 		# Currency'yi al (supplier'dan veya company'den)
 		supplier_currency = frappe.db.get_value("Supplier", supplier_name, "default_currency")
