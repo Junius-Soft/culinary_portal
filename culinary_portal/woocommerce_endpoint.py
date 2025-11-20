@@ -106,6 +106,9 @@ def create_or_update_address(customer_doc, meta_data):
 	# Mevcut primary address'i kontrol et
 	existing_address_name = customer_doc.customer_primary_address
 	
+	# Customer'dan email_id'yi al
+	customer_email = getattr(customer_doc, "email_id", None) or customer_doc.woocommerce_identifier
+	
 	if existing_address_name and frappe.db.exists("Address", existing_address_name):
 		# Mevcut address'i güncelle
 		address_doc = frappe.get_doc("Address", existing_address_name)
@@ -115,6 +118,8 @@ def create_or_update_address(customer_doc, meta_data):
 		address_doc.pincode = address_zip
 		if country_name:
 			address_doc.country = country_name
+		if customer_email:
+			address_doc.email_id = customer_email
 		address_doc.address_type = "Shipping"
 		address_doc.flags.skip_wordpress_sync = True
 		address_doc.flags.ignore_permissions = True
@@ -135,6 +140,8 @@ def create_or_update_address(customer_doc, meta_data):
 		address_doc.pincode = address_zip
 		if country_name:
 			address_doc.country = country_name
+		if customer_email:
+			address_doc.email_id = customer_email
 		address_doc.is_primary_address = 1
 		address_doc.is_shipping_address = 1
 		address_doc.append("links", {"link_doctype": "Customer", "link_name": customer_doc.name})
