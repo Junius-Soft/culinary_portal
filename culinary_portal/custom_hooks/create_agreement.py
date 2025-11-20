@@ -38,23 +38,34 @@ def create_agreements_for_customer(doc, method=None):
 		print(f"  custom_brand_vendor_2: '{new_vendors[2]}'")
 		print(f"  custom_brand_vendor_3: '{new_vendors[3]}'")
 		
-		# Yeni customer ise (insert) ve brand vendor alanları doluysa
+		# Yeni customer kontrolü before_save'de yapılmaz, after_insert'te yapılacak
 		if doc.get("__islocal"):
-			print("\n\n\n DEBUG-AGREEMENT-5 Yeni customer (insert)")
-			# Yeni customer için brand vendor alanlarını kontrol et
-			for idx, supplier in enumerate([new_vendors[1], new_vendors[2], new_vendors[3]], start=1):
-				if supplier:
-					print(f"\n\n\n DEBUG-AGREEMENT-6 Vendor {idx} bulundu: {supplier}")
-					if frappe.db.exists("Supplier", supplier):
-						print(f"\n\n\n DEBUG-AGREEMENT-7 Supplier mevcut, agreement oluşturuluyor")
-						_create_agreement(doc.name, supplier)
-					else:
-						print(f"\n\n\n DEBUG-AGREEMENT-8 Supplier mevcut değil: {supplier}")
-			print("\n\n\n ========== CREATE AGREEMENTS FOR CUSTOMER BİTTİ (YENİ) ==========")
+			print("\n\n\n DEBUG-AGREEMENT-5 Yeni customer (insert) - before_save'de atlanıyor, after_insert'te işlenecek")
+			print("\n\n\n ========== CREATE AGREEMENTS FOR CUSTOMER BİTTİ (YENİ - AFTER_INSERT'E BIRAKILDI) ==========")
 			return
 		
 		# Mevcut customer için değişiklik kontrolü
 		print("\n\n\n DEBUG-AGREEMENT-9 Mevcut customer (update)")
+		
+		# before_save hook'unda has_value_changed() çalışır
+		has_vendor_changes = (
+			doc.has_value_changed("custom_brand_vendor_1") or
+			doc.has_value_changed("custom_brand_vendor_2") or
+			doc.has_value_changed("custom_brand_vendor_3")
+		)
+		
+		print(f"\n\n\n DEBUG-AGREEMENT-10 has_value_changed kontrolü:")
+		print(f"  custom_brand_vendor_1: {doc.has_value_changed('custom_brand_vendor_1')}")
+		print(f"  custom_brand_vendor_2: {doc.has_value_changed('custom_brand_vendor_2')}")
+		print(f"  custom_brand_vendor_3: {doc.has_value_changed('custom_brand_vendor_3')}")
+		print(f"  Toplam değişiklik var mı: {has_vendor_changes}")
+		
+		if not has_vendor_changes:
+			print("\n\n\n DEBUG-AGREEMENT-11 Değişiklik yok (has_value_changed), çıkılıyor")
+			print("\n\n\n ========== CREATE AGREEMENTS FOR CUSTOMER BİTTİ (DEĞİŞİKLİK YOK) ==========")
+			return
+		
+		# Değişiklik var, eski değerleri DB'den al (before_save'de DB henüz güncellenmemiş)
 		old_values = frappe.db.get_value(
 			"Customer",
 			doc.name,
@@ -66,18 +77,23 @@ def create_agreements_for_customer(doc, method=None):
 			as_dict=True
 		)
 		
-		print(f"\n\n\n DEBUG-AGREEMENT-10 Eski değerler DB'den alındı: {old_values}")
+		print(f"\n\n\n DEBUG-AGREEMENT-11.1 DB'den eski değerler alındı: {old_values}")
 		
 		if not old_values:
-			print("\n\n\n DEBUG-AGREEMENT-11 Eski değerler bulunamadı, çıkılıyor")
-			return
+			# Yeni customer ise, tüm vendor'lar için kontrol et
+			print("\n\n\n DEBUG-AGREEMENT-11.2 Eski değerler bulunamadı (yeni customer?), tüm vendor'lar için kontrol ediliyor")
+			old_vendors = {1: "", 2: "", 3: ""}
+		else:
+			old_vendors = {
+				1: old_values.get("custom_brand_vendor_1", "") or "",
+				2: old_values.get("custom_brand_vendor_2", "") or "",
+				3: old_values.get("custom_brand_vendor_3", "") or "",
+			}
 		
-		# Eski değerler
-		old_vendors = {
-			1: old_values.get("custom_brand_vendor_1", "") or "",
-			2: old_values.get("custom_brand_vendor_2", "") or "",
-			3: old_values.get("custom_brand_vendor_3", "") or "",
-		}
+		print(f"\n\n\n DEBUG-AGREEMENT-12 Eski vendor değerleri:")
+		print(f"  custom_brand_vendor_1: '{old_vendors[1]}'")
+		print(f"  custom_brand_vendor_2: '{old_vendors[2]}'")
+		print(f"  custom_brand_vendor_3: '{old_vendors[3]}'")
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-12 Eski vendor değerleri:")
 		print(f"  custom_brand_vendor_1: '{old_vendors[1]}'")
@@ -227,5 +243,51 @@ def _create_agreement(customer_name, supplier_name):
 		frappe.log_error(
 			title="Agreement Creation Error",
 			message=f"Customer: {customer_name}, Supplier: {supplier_name}\n{frappe.get_traceback()}"
+		)
+
+
+def create_agreements_for_customer_after_insert(doc, method=None):
+	"""
+	Yeni Customer insert edildikten sonra brand vendor alanlarına göre Agreement oluşturur.
+	"""
+	print("\n\n\n ========== CREATE AGREEMENTS FOR CUSTOMER AFTER INSERT BAŞLADI ==========")
+	print(f"\n\n\n DEBUG-AGREEMENT-AI-1 Customer: {doc.name}")
+	
+	try:
+		# WordPress sync'ten gelen insert'leri atla
+		if getattr(doc.flags, "skip_wordpress_sync", False):
+			print("\n\n\n DEBUG-AGREEMENT-AI-2 WordPress sync flag var, hook atlanıyor")
+			return
+		
+		# Yeni vendor değerleri
+		new_vendors = {
+			1: getattr(doc, "custom_brand_vendor_1", "") or "",
+			2: getattr(doc, "custom_brand_vendor_2", "") or "",
+			3: getattr(doc, "custom_brand_vendor_3", "") or "",
+		}
+		
+		print(f"\n\n\n DEBUG-AGREEMENT-AI-3 Yeni vendor değerleri:")
+		print(f"  custom_brand_vendor_1: '{new_vendors[1]}'")
+		print(f"  custom_brand_vendor_2: '{new_vendors[2]}'")
+		print(f"  custom_brand_vendor_3: '{new_vendors[3]}'")
+		
+		# Boş olmayan vendor'lar için agreement oluştur
+		for idx, supplier in enumerate([new_vendors[1], new_vendors[2], new_vendors[3]], start=1):
+			if supplier:
+				print(f"\n\n\n DEBUG-AGREEMENT-AI-4 Vendor {idx} bulundu: {supplier}")
+				if frappe.db.exists("Supplier", supplier):
+					print(f"\n\n\n DEBUG-AGREEMENT-AI-5 Supplier mevcut, agreement oluşturuluyor")
+					_create_agreement(doc.name, supplier)
+				else:
+					print(f"\n\n\n DEBUG-AGREEMENT-AI-6 Supplier mevcut değil: {supplier}")
+		
+		print("\n\n\n ========== CREATE AGREEMENTS FOR CUSTOMER AFTER INSERT BİTTİ ==========")
+		
+	except Exception as e:
+		print(f"\n\n\n DEBUG-AGREEMENT-AI-ERROR Exception: {str(e)}")
+		print(f"\n\n\n DEBUG-AGREEMENT-AI-ERROR Traceback: {frappe.get_traceback()}")
+		frappe.log_error(
+			title="Customer Agreement Creation After Insert Error",
+			message=frappe.get_traceback()
 		)
 

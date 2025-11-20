@@ -186,11 +186,12 @@ doc_events = {
 	},
 	"Customer": {
 		"validate": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_status_by_role",
+		"before_save": "culinary_portal.custom_hooks.create_agreement.create_agreements_for_customer",
+		"after_insert": "culinary_portal.custom_hooks.create_agreement.create_agreements_for_customer_after_insert",
 		"on_update": [
 			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_role_sync",
 			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_b2b_group",
 			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_wordpress_sync",
-			"culinary_portal.custom_hooks.create_agreement.create_agreements_for_customer",
 		],
 		"on_trash": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_on_trash",
 	},
