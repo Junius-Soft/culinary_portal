@@ -325,6 +325,88 @@ def handle_customer_wordpress_sync(doc, method=None):
 		)
 
 
+def handle_customer_status_by_role(doc, method=None):
+	"""
+	Customer kaydedilirken custom_role alanina gore aktif/pasif durumunu ayarlar
+	ve role degisikligi yapildiysa flag set eder.
+	"""
+	try:
+		role_value = (doc.custom_role or "").strip()
+		if not role_value:
+			return
+
+		is_customer_role = role_value.lower() == "customer"
+		should_disable = 0 if is_customer_role else 1
+
+		if doc.disabled != should_disable:
+			doc.disabled = should_disable
+
+		previous_role = None
+		if not doc.get("__islocal"):
+			previous_role = frappe.db.get_value("Customer", doc.name, "custom_role") or ""
+
+		if doc.get("__islocal") or (previous_role.strip() != role_value):
+			doc.flags.culinary_role_sync_required = True
+		else:
+			doc.flags.culinary_role_sync_required = getattr(doc.flags, "culinary_role_sync_required", False)
+	except Exception:
+		frappe.log_error(
+			title="Customer Status By Role Error",
+			message=frappe.get_traceback(),
+		)
+
+
+def handle_customer_role_sync(doc, method=None):
+	"""
+	Customer kaydedildikten sonra WordPress user role'unu custom_role ile senkronlar.
+	"""
+	try:
+		if getattr(doc.flags, "skip_wordpress_sync", False):
+			return
+
+		role_value = (doc.custom_role or "").strip()
+		if not role_value:
+			return
+
+		# Role degismediyse DB'den kontrol
+		if not getattr(doc.flags, "culinary_role_sync_required", False) and not doc.get("__islocal"):
+			prev_role = frappe.db.get_value("Customer", doc.name, "custom_role") or ""
+			if prev_role.strip() == role_value:
+				return
+
+		wp_user_id = getattr(doc, "custom_portal_user_id", None)
+		if not wp_user_id:
+			return
+
+		url = f"{get_wo_url()}/wp-json/wp/v2/users/{wp_user_id}"
+		payload = {"roles": [role_value]}
+
+		resp = requests.put(
+			url,
+			auth=(get_wp_user(), get_wp_app_key()),
+			json=payload,
+			headers={"Content-Type": "application/json"},
+			timeout=40,
+		)
+
+		if resp.status_code not in (200, 201):
+			frappe.log_error(
+				title="Customer Role Sync Error",
+				message=f"User ID: {wp_user_id}\nRole: {role_value}\nStatus: {resp.status_code}\nResponse: {resp.text}",
+			)
+			return
+
+		# Disabled state zaten validate'de set edildi; DB'de emniyet icin guncelle
+		new_disabled = 0 if role_value.lower() == "customer" else 1
+		if frappe.db.get_value("Customer", doc.name, "disabled") != new_disabled:
+			frappe.db.set_value("Customer", doc.name, "disabled", new_disabled)
+	except Exception:
+		frappe.log_error(
+			title="Customer Role Sync Exception",
+			message=frappe.get_traceback(),
+		)
+
+
 def handle_address_wordpress_sync(doc, method=None):
 	"""
 	Address güncellendiğinde ilgili Customer kayıtlarını WordPress ile senkronize eder.

@@ -185,7 +185,9 @@ doc_events = {
 		"on_trash": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_on_trash",
 	},
 	"Customer": {
+		"validate": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_status_by_role",
 		"on_update": [
+			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_role_sync",
 			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_b2b_group",
 			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_wordpress_sync",
 		],
