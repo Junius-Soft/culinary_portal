@@ -60,7 +60,7 @@ fixtures = [
 doctype_js = {
 	"Item": "public/js/item.js",
 	"Supplier": "public/js/supplier.js",
-	"Customer": "public/js/customer.js"
+	# "Customer": "public/js/customer.js"
 }
 
 doctype_list_js = {
