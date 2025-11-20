@@ -222,16 +222,31 @@ def _create_agreement(customer_name, supplier_name):
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-7 {len(supplier_items)} ürün bulundu")
 		
+		# Discount rate'i al (20 olarak set edilmiş)
+		discount_rate = frappe.utils.flt(agreement_doc.discount_rate or 20)
+		
+		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-7.1 Discount rate: {discount_rate}%")
+		
 		# Her ürünü Agreement Items'a ekle
 		for item_data in supplier_items:
+			standard_selling_rate = frappe.utils.flt(item_data.get("standard_selling_rate", 0))
+			
+			# price_list_rate = standard_selling_rate * (1 - discount_rate / 100)
+			if discount_rate and standard_selling_rate:
+				price_list_rate = standard_selling_rate * (1.0 - (discount_rate / 100.0))
+			else:
+				price_list_rate = standard_selling_rate
+			
+			print(f"\n\n\n DEBUG-AGREEMENT-CREATE-7.2 Item: {item_data.get('item_code')}, Standard: {standard_selling_rate}, Discount: {discount_rate}%, Final: {price_list_rate}")
+			
 			agreement_doc.append("agreement_items", {
 				"item_code": item_data.get("item_code"),
 				"item_name": item_data.get("item_name"),
 				"item_group": item_data.get("item_group"),
 				"kitchen_item": item_data.get("kitchen_item", 0),
 				"uom": item_data.get("uom"),
-				"standard_selling_rate": item_data.get("standard_selling_rate", 0),
-				"price_list_rate": item_data.get("price_list_rate", 0),
+				"standard_selling_rate": standard_selling_rate,
+				"price_list_rate": price_list_rate,
 				"currency": item_data.get("currency", currency)
 			})
 		
