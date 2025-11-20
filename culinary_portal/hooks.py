@@ -192,6 +192,7 @@ doc_events = {
 			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_role_sync",
 			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_b2b_group",
 			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_wordpress_sync",
+			"culinary_portal.custom_hooks.attach_customer_files.attach_customer_files_on_update",
 		],
 		"on_trash": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_on_trash",
 	},
