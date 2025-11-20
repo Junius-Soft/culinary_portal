@@ -197,6 +197,26 @@ def update_wordpress_user_from_customer(customer_doc):
 			"ablaufdatum": getattr(customer_doc, "custom_expiry_date", "") or "",
 			"betriebsform": getattr(customer_doc, "custom_operating_form", "") or "",
 			"address_apartment": getattr(customer_doc, "address_apartment", "") or "",
+			# Dosya alanları (URL) - ERPNext -> WordPress
+			"gewerbeanmeldung_file": getattr(customer_doc, "custom_business_registration_file", "") or "",
+			"ausweis_file": getattr(customer_doc, "custom_id_file", "") or "",
+			"hr-auszug_file": getattr(customer_doc, "custom_hr_extract_file", "") or "",
+			"gesellschafterliste_file": getattr(customer_doc, "custom_shareholder_list_file", "") or "",
+			"register-auszug_file": getattr(customer_doc, "custom_register_extract_file", "") or "",
+			# Marken services alanları - ERPNext -> WordPress
+			"marken_1_services": getattr(customer_doc, "custom_brands_1", "") or "",
+			"marken_2_services": getattr(customer_doc, "custom_brands_2", "") or "",
+			"marken_3_services": getattr(customer_doc, "custom_brands_3", "") or "",
+			# Region marken alanları - ERPNext -> WordPress
+			"region_1_marken": getattr(customer_doc, "custom_region_1", "") or "",
+			"region_2_marken": getattr(customer_doc, "custom_region_2", "") or "",
+			"region_3_marken": getattr(customer_doc, "custom_region_3", "") or "",
+			"region_4_marken": getattr(customer_doc, "custom_region_4", "") or "",
+			"region_5_marken": getattr(customer_doc, "custom_region_5", "") or "",
+			# Marken vendor alanları - ERPNext -> WordPress
+			"marken-vendor_1": getattr(customer_doc, "custom_brand_vendor_1", "") or "",
+			"marken-vendor_2": getattr(customer_doc, "custom_brand_vendor_2", "") or "",
+			"marken-vendor_3": getattr(customer_doc, "custom_brand_vendor_3", "") or "",
 		}
 		
 		# Adres bilgilerini Address doctype'ından al
@@ -288,6 +308,30 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	customer_doc.custom_date_of_issue = extract_meta_value(meta_data, "ausstellungsdatum")
 	customer_doc.custom_expiry_date = extract_meta_value(meta_data, "ablaufdatum")
 	customer_doc.custom_operating_form = extract_meta_value(meta_data, "betriebsform")
+	
+	# Dosya alanları (URL) - WordPress -> ERPNext
+	customer_doc.custom_business_registration_file = extract_meta_value(meta_data, "gewerbeanmeldung_file")
+	customer_doc.custom_id_file = extract_meta_value(meta_data, "ausweis_file")
+	customer_doc.custom_hr_extract_file = extract_meta_value(meta_data, "hr-auszug_file")
+	customer_doc.custom_shareholder_list_file = extract_meta_value(meta_data, "gesellschafterliste_file")
+	customer_doc.custom_register_extract_file = extract_meta_value(meta_data, "register-auszug_file")
+	
+	# Brands alanları - WordPress -> ERPNext
+	customer_doc.custom_brands_1 = extract_meta_value(meta_data, "marken_1_services")
+	customer_doc.custom_brands_2 = extract_meta_value(meta_data, "marken_2_services")
+	customer_doc.custom_brands_3 = extract_meta_value(meta_data, "marken_3_services")
+	
+	# Region alanları - WordPress -> ERPNext
+	customer_doc.custom_region_1 = extract_meta_value(meta_data, "region_1_marken")
+	customer_doc.custom_region_2 = extract_meta_value(meta_data, "region_2_marken")
+	customer_doc.custom_region_3 = extract_meta_value(meta_data, "region_3_marken")
+	customer_doc.custom_region_4 = extract_meta_value(meta_data, "region_4_marken")
+	customer_doc.custom_region_5 = extract_meta_value(meta_data, "region_5_marken")
+	
+	# Brand Vendor alanları - WordPress -> ERPNext
+	customer_doc.custom_brand_vendor_1 = extract_meta_value(meta_data, "marken-vendor_1")
+	customer_doc.custom_brand_vendor_2 = extract_meta_value(meta_data, "marken-vendor_2")
+	customer_doc.custom_brand_vendor_3 = extract_meta_value(meta_data, "marken-vendor_3")
 	
 	return customer_doc
 
