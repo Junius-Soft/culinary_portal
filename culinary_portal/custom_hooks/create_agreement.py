@@ -21,11 +21,10 @@ def create_agreements_for_customer(doc, method=None):
 	print(f"\n\n\n DEBUG-AGREEMENT-2 __islocal: {doc.get('__islocal')}")
 	
 	try:
-		# Flag kontrolü - tekrar çalışmasını önle
-		if getattr(doc.flags, "culinary_agreement_creation_ran", False):
-			print("\n\n\n DEBUG-AGREEMENT-3 Flag var, hook atlanıyor")
+		# WordPress sync'ten gelen update'leri atla
+		if getattr(doc.flags, "skip_wordpress_sync", False):
+			print("\n\n\n DEBUG-AGREEMENT-3 WordPress sync flag var, hook atlanıyor")
 			return
-		doc.flags.culinary_agreement_creation_ran = True
 		
 		# Yeni değerler
 		new_vendors = {
