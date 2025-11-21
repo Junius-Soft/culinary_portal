@@ -368,7 +368,7 @@ def collect_customer_b2bking_groups_for_item(item_code: str) -> dict:
 	return {"meta_data": merged}
 
 
-def sync_item_to_woocommerce(doctype: str, docname: str):
+def sync_item_to_woocommerce(doctype: str, docname: str, skip_price_update: bool = False):
 	"""Item veya Item Price'ı WordPress'e senkronize eder (queue'da çalışır)"""
 	try:
 		doc = frappe.get_doc(doctype, docname)
@@ -453,13 +453,22 @@ def sync_item_to_woocommerce(doctype: str, docname: str):
 			print(f"DEBUG: Error getting category_id from Item Group: {e}")
 			category_id = None
 
-		# Ürüne bağlı birleşik meta_data (tek obje) al - tüm B2B grupları
-		aggregated = collect_customer_b2bking_groups_for_item(payload.get("item_code"))
-		dynamic_meta = aggregated.get("meta_data", []) if isinstance(aggregated, dict) else []
+		# Fiyat güncellemesi atlanacaksa, B2B fiyat meta_data'larını toplama
+		dynamic_meta = []
+		standard_price = None
+		if skip_price_update:
+			print("DEBUG: Fiyat güncellemesi atlanıyor - sadece fiyat dışı alanlar güncellenecek")
+			# UOM bilgilerini al (fiyat dışı)
+			uom_meta = get_uom_meta_data(payload.get("item_code"), item_data=payload, doc=doc)
+			dynamic_meta = uom_meta if uom_meta else []
+		else:
+			# Ürüne bağlı birleşik meta_data (tek obje) al - tüm B2B grupları
+			aggregated = collect_customer_b2bking_groups_for_item(payload.get("item_code"))
+			dynamic_meta = aggregated.get("meta_data", []) if isinstance(aggregated, dict) else []
 
-		# Standard Selling fiyat kontrolü
-		standard_price = _get_standard_selling_price(payload.get("item_code"))
-		print("\n\n\n DEBUG:1 standard_price", standard_price)
+			# Standard Selling fiyat kontrolü
+			standard_price = _get_standard_selling_price(payload.get("item_code"))
+			print("\n\n\n DEBUG:1 standard_price", standard_price)
 
 		# Status belirleme: disabled durumuna göre
 		if payload.get("disabled", 0) == 1:
@@ -469,14 +478,15 @@ def sync_item_to_woocommerce(doctype: str, docname: str):
 			status_value = "publish"
 			print("DEBUG: Item enabled, status = publish")
 
-		# Fiyat kontrolü - eğer fiyat yoksa draft yap
-		try:
-			std_price_num = float(standard_price) if standard_price is not None else 0.0
-		except Exception:
-			std_price_num = 0.0
-		if standard_price is None or std_price_num == 0.0:
-			frappe.msgprint(frappe._("Product price not defined. Product will be added as Draft"), alert=True)
-			status_value = "draft"
+		# Fiyat kontrolü - eğer fiyat yoksa draft yap (sadece fiyat güncellemesi yapılıyorsa)
+		if not skip_price_update:
+			try:
+				std_price_num = float(standard_price) if standard_price is not None else 0.0
+			except Exception:
+				std_price_num = 0.0
+			if standard_price is None or std_price_num == 0.0:
+				frappe.msgprint(frappe._("Product price not defined. Product will be added as Draft"), alert=True)
+				status_value = "draft"
 
 		# WooCommerce formatına dönüştür
 		wc_payload = map_item_to_woocommerce(
@@ -486,7 +496,8 @@ def sync_item_to_woocommerce(doctype: str, docname: str):
 			category_id,
 			dynamic_meta,
 			status_value=status_value,
-			regular_price_override=str(standard_price) if standard_price is not None else None,
+			regular_price_override=str(standard_price) if (standard_price is not None and not skip_price_update) else None,
+			skip_price_update=skip_price_update,
 		)
 
 		# WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
@@ -515,16 +526,39 @@ def handle_item_saved(doc, method=None):
 	if getattr(doc.flags, "created_by_sync", None):
 		return
 
+	# Item güncellemesinde fiyat değişikliği kontrolü
+	skip_price_update = False
+	if doc.doctype == "Item":
+		# Önceki değerleri kontrol et
+		doc_before_save = getattr(doc, "_doc_before_save", None)
+		if doc_before_save:
+			# Fiyat ile ilgili alanların değişip değişmediğini kontrol et
+			price_related_fields = ["standard_rate"]
+			price_changed = False
+			
+			for field in price_related_fields:
+				old_value = getattr(doc_before_save, field, None)
+				new_value = getattr(doc, field, None)
+				if old_value != new_value:
+					price_changed = True
+					break
+			
+			# Fiyat değişmemişse, sadece fiyat dışı güncelleme yap
+			if not price_changed:
+				skip_price_update = True
+				print(f"DEBUG: Item {doc.name} - Fiyat değişmedi, sadece fiyat dışı alanlar güncellenecek")
+
 	# Queue'ya ekle
 	frappe.enqueue(
 		"culinary_portal.custom_hooks.create_item.sync_item_to_woocommerce",
 		doctype=doc.doctype,
 		docname=doc.name,
+		skip_price_update=skip_price_update,
 		queue="default",
 		timeout=300,  # 5 dakika timeout
 		now=False,  # Arka planda çalışsın
 	)
-	print(f"DEBUG: {doc.doctype} {doc.name} queue'ya eklendi")
+	print(f"DEBUG: {doc.doctype} {doc.name} queue'ya eklendi (skip_price_update={skip_price_update})")
 
 
 def map_item_to_woocommerce(
@@ -535,34 +569,38 @@ def map_item_to_woocommerce(
 	meta_data: list[dict],
 	status_value: str = "publish",
 	regular_price_override: str | None = None,
+	skip_price_update: bool = False,
 ):
 	"""ERPNext Item verisini Portal formatına dönüştürür"""
 	print("\n\n\n DEBUG:1 DOC NAME", doc)
 
-	# UOM bilgilerini meta_data'ya ekle
+	# UOM bilgilerini meta_data'ya ekle (fiyat güncellemesi atlanıyorsa zaten eklenmiş olabilir)
 	item_code = item_data.get("item_code") or (doc.name if doc else None)
-	uom_meta = get_uom_meta_data(item_code, item_data=item_data, doc=doc)
+	
+	# Eğer skip_price_update True ise, UOM zaten meta_data'da olabilir, tekrar eklemeye gerek yok
+	if not skip_price_update:
+		uom_meta = get_uom_meta_data(item_code, item_data=item_data, doc=doc)
 
-	# Mevcut meta_data ile birleştir (duplicate key kontrolü ile)
-	if uom_meta:
-		# Mevcut meta_data'yı dict'e çevir (key bazlı erişim için)
-		meta_dict = {}
-		for m in (meta_data or []):
-			key = m.get("key")
-			if key:
-				meta_dict[key] = m
-		
-		# UOM meta_data'larını ekle (varsa üzerine yaz)
-		for uom_item in uom_meta:
-			key = uom_item.get("key")
-			if key:
-				meta_dict[key] = uom_item
-		
-		# Dict'i tekrar listeye çevir
-		meta_data = list(meta_dict.values())
-		print(f"DEBUG: UOM meta_data eklendi, toplam meta_data sayısı: {len(meta_data)}")
-	else:
-		print("DEBUG: UOM meta_data eklenemedi")
+		# Mevcut meta_data ile birleştir (duplicate key kontrolü ile)
+		if uom_meta:
+			# Mevcut meta_data'yı dict'e çevir (key bazlı erişim için)
+			meta_dict = {}
+			for m in (meta_data or []):
+				key = m.get("key")
+				if key:
+					meta_dict[key] = m
+			
+			# UOM meta_data'larını ekle (varsa üzerine yaz)
+			for uom_item in uom_meta:
+				key = uom_item.get("key")
+				if key:
+					meta_dict[key] = uom_item
+			
+			# Dict'i tekrar listeye çevir
+			meta_data = list(meta_dict.values())
+			print(f"DEBUG: UOM meta_data eklendi, toplam meta_data sayısı: {len(meta_data)}")
+		else:
+			print("DEBUG: UOM meta_data eklenemedi")
 
 	image_path = item_data.get("image", "") or ""
 	images = []  # Default boş array
@@ -608,12 +646,14 @@ def map_item_to_woocommerce(
 		categories.append({"id": int(category_id)})
 		print(f"DEBUG: Added Item Group category ID: {category_id}")
 
-	# regular_price tercihi: override > item.standard_rate
-	regular_price_value = (
-		regular_price_override
-		if regular_price_override is not None
-		else str(item_data.get("standard_rate", "0.0"))
-	)
+	# regular_price tercihi: override > item.standard_rate (sadece fiyat güncellemesi yapılıyorsa)
+	regular_price_value = None
+	if not skip_price_update:
+		regular_price_value = (
+			regular_price_override
+			if regular_price_override is not None
+			else str(item_data.get("standard_rate", "0.0"))
+		)
 
 	if doc.doctype == "Item":
 		# Supplier categories'ini de ekle
@@ -666,6 +706,14 @@ def map_item_to_woocommerce(
 			"images": images,
 			"meta_data": meta_data or [],
 		}
+		
+		# regular_price'ı sadece fiyat güncellemesi yapılıyorsa ekle
+		if not skip_price_update and regular_price_value and regular_price_value != "0.0":
+			wc_data["regular_price"] = regular_price_value
+			print(f"DEBUG: regular_price WooCommerce'e gönderiliyor: {regular_price_value}")
+		else:
+			print("DEBUG: regular_price güncellemesi atlandı (skip_price_update=True)")
+		
 		return wc_data
 	else:
 		wc_data = {
