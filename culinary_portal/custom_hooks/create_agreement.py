@@ -21,10 +21,8 @@ def create_agreements_for_customer(doc, method=None):
 	print(f"\n\n\n DEBUG-AGREEMENT-2 __islocal: {doc.get('__islocal')}")
 	
 	try:
-		# WordPress sync'ten gelen update'leri atla
-		if getattr(doc.flags, "skip_wordpress_sync", False):
-			print("\n\n\n DEBUG-AGREEMENT-3 WordPress sync flag var, hook atlanıyor")
-			return
+		# Agreement oluşturma WordPress sync'ten bağımsız çalışmalı
+		# skip_wordpress_sync sadece WordPress'e geri göndermeyi atlar
 		
 		# Yeni değerler
 		new_vendors = {
@@ -283,10 +281,8 @@ def create_agreements_for_customer_after_insert(doc, method=None):
 	print(f"\n\n\n DEBUG-AGREEMENT-AI-1 Customer: {doc.name}")
 	
 	try:
-		# WordPress sync'ten gelen insert'leri atla
-		if getattr(doc.flags, "skip_wordpress_sync", False):
-			print("\n\n\n DEBUG-AGREEMENT-AI-2 WordPress sync flag var, hook atlanıyor")
-			return
+		# Agreement oluşturma WordPress sync'ten bağımsız çalışmalı
+		# skip_wordpress_sync sadece WordPress'e geri göndermeyi atlar
 		
 		# Yeni vendor değerleri
 		new_vendors = {
@@ -317,6 +313,68 @@ def create_agreements_for_customer_after_insert(doc, method=None):
 		print(f"\n\n\n DEBUG-AGREEMENT-AI-ERROR Traceback: {frappe.get_traceback()}")
 		frappe.log_error(
 			title="Customer Agreement Creation After Insert Error",
+			message=frappe.get_traceback()
+		)
+
+
+def create_agreements_for_customer_on_update(doc, method=None):
+	"""
+	Customer on_update hook'unda çalışır.
+	WordPress webhook'undan geldiğinde before_save'de has_value_changed() çalışmayabilir,
+	bu yüzden on_update'te de kontrol ediyoruz.
+	"""
+	print("\n\n\n ========== CREATE AGREEMENTS FOR CUSTOMER ON UPDATE BAŞLADI ==========")
+	print(f"\n\n\n DEBUG-AGREEMENT-OU-1 Customer: {doc.name}")
+	
+	try:
+		# Agreement oluşturma WordPress sync'ten bağımsız çalışmalı
+		
+		# Yeni değerler
+		new_vendors = {
+			1: getattr(doc, "custom_brand_vendor_1", "") or "",
+			2: getattr(doc, "custom_brand_vendor_2", "") or "",
+			3: getattr(doc, "custom_brand_vendor_3", "") or "",
+		}
+		
+		print(f"\n\n\n DEBUG-AGREEMENT-OU-2 Yeni vendor değerleri:")
+		print(f"  custom_brand_vendor_1: '{new_vendors[1]}'")
+		print(f"  custom_brand_vendor_2: '{new_vendors[2]}'")
+		print(f"  custom_brand_vendor_3: '{new_vendors[3]}'")
+		
+		# DB'den eski değerleri al (on_update'te DB zaten güncellenmiş)
+		# Bu yüzden sadece yeni vendor'lar için agreement oluştur
+		# Eğer vendor değeri varsa ve agreement yoksa oluştur
+		for idx in [1, 2, 3]:
+			supplier = new_vendors[idx]
+			
+			if supplier and frappe.db.exists("Supplier", supplier):
+				# Bu customer-supplier için zaten agreement var mı kontrol et
+				existing_agreement = frappe.db.exists(
+					"Agreement",
+					{
+						"customer": doc.name,
+						"supplier": supplier,
+						"docstatus": ["!=", 2]  # Cancel edilmemiş
+					}
+				)
+				
+				print(f"\n\n\n DEBUG-AGREEMENT-OU-3 Vendor {idx} ({supplier}) kontrolü:")
+				print(f"  Mevcut agreement: {existing_agreement}")
+				
+				# Agreement yoksa oluştur
+				if not existing_agreement:
+					print(f"\n\n\n DEBUG-AGREEMENT-OU-4 Agreement oluşturuluyor: Customer={doc.name}, Supplier={supplier}")
+					_create_agreement(doc.name, supplier)
+				else:
+					print(f"\n\n\n DEBUG-AGREEMENT-OU-5 Agreement zaten mevcut, atlanıyor")
+		
+		print("\n\n\n ========== CREATE AGREEMENTS FOR CUSTOMER ON UPDATE BİTTİ ==========")
+		
+	except Exception as e:
+		print(f"\n\n\n DEBUG-AGREEMENT-OU-ERROR Exception: {str(e)}")
+		print(f"\n\n\n DEBUG-AGREEMENT-OU-ERROR Traceback: {frappe.get_traceback()}")
+		frappe.log_error(
+			title="Customer Agreement Creation On Update Error",
 			message=frappe.get_traceback()
 		)
 
