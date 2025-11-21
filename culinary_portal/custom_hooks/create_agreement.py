@@ -204,9 +204,6 @@ def _create_agreement(customer_name, supplier_name):
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-5 Agreement doc oluşturuldu")
 		
-		# Supplier'a ait ürünleri al ve Agreement Items'a ekle
-		from culinary_order_management.culinary_order_management.agreement import get_supplier_items_with_standard_prices
-		
 		# Currency'yi al (supplier'dan veya company'den)
 		supplier_currency = frappe.db.get_value("Supplier", supplier_name, "default_currency")
 		if not supplier_currency:
@@ -216,7 +213,74 @@ def _create_agreement(customer_name, supplier_name):
 			currency = supplier_currency
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-6 Supplier'a ait ürünler alınıyor (currency: {currency})...")
-		supplier_items = get_supplier_items_with_standard_prices(supplier_name, currency)
+		
+		# Supplier'a ait ürünleri direkt SQL ile al (permission kontrolü olmadan)
+		items = frappe.db.sql(
+			"""
+			select i.name as item_code, i.item_name, i.item_group,
+			       i.is_kitchen_item as kitchen_item,
+			       i.stock_uom as uom
+			from `tabItem` i
+			join `tabItem Supplier` s on s.parent = i.name and s.supplier = %s
+			where i.disabled = 0 and i.is_sales_item = 1
+			order by i.item_name
+			""",
+			supplier_name,
+			as_dict=True,
+		)
+		
+		if not items:
+			print(f"\n\n\n DEBUG-AGREEMENT-CREATE-6.1 Supplier'a ait ürün bulunamadı")
+			supplier_items = []
+		else:
+			# Standard Selling fiyatlarını al
+			item_codes = [it.item_code for it in items]
+			placeholders = ",".join(["%s"] * len(item_codes))
+			price_rows = []
+			if item_codes:
+				price_rows = frappe.db.sql(
+					f"""
+					select item_code, price_list_rate
+					from `tabItem Price`
+					where price_list = 'Standard Selling' and selling = 1
+					  and currency = %s and item_code in ({placeholders})
+					""",
+					[currency, *item_codes],
+					as_dict=True,
+				)
+			
+			price_map = {r.item_code: float(r.price_list_rate) for r in price_rows}
+			
+			# Eksik fiyatlar için alternatif price list'lerden fiyat al
+			supplier_items = []
+			for it in items:
+				std_rate = price_map.get(it.item_code, 0.0)
+				if not std_rate:
+					# Standard Selling'de yoksa, diğer selling price list'lerden al
+					alt_price = frappe.db.sql(
+						"""
+						select price_list_rate from `tabItem Price`
+						where item_code=%s and selling=1
+						  and (currency=%s or %s is null)
+						order by (valid_from is null), valid_from desc, modified desc
+						limit 1
+						""",
+						(it.item_code, currency, currency),
+						as_dict=True,
+					)
+					if alt_price:
+						std_rate = float(alt_price[0].price_list_rate)
+				
+				supplier_items.append({
+					"item_code": it.item_code,
+					"item_name": it.item_name,
+					"item_group": it.item_group,
+					"kitchen_item": int(it.kitchen_item or 0),
+					"uom": it.uom,
+					"standard_selling_rate": std_rate,
+					"price_list_rate": std_rate,
+					"currency": currency,
+				})
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-7 {len(supplier_items)} ürün bulundu")
 		
