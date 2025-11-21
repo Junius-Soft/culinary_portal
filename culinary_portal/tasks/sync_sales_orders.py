@@ -845,6 +845,7 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 				frappe.throw(
 					_("Please set 'Account for Order Fee Lines' in WooCommerce Server")
 				)
+
 			if not wc_order.fee_lines:
 				return
 			for fee_line in json.loads(wc_order.fee_lines):
@@ -883,8 +884,8 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 		self, woocommerce_order_line_item: dict, so_item: SalesOrderItem | dict
 	) -> tuple[bool, WooCommerceOrder]:
 		"""
-		If there exist any Order Item Line Field Mappings on `WooCommerce Server`, attempt to set their values from
-		the WooCommerce Order Line Item to the ERPNext Sales Order Item
+		If there exist any Order Item Line Field Mappings on `Portal Server`, attempt to set their values from
+		the Portal Order Line Item to the ERPNext Sales Order Item
 
 		Returns true if woocommerce_order_line_item was changed
 		"""
@@ -1088,7 +1089,7 @@ def get_list_of_wc_orders(
 	status: str | None = None,
 ):
 	"""
-	Fetches a list of WooCommerce Orders within a specified date range or linked with a Sales Order, using pagination.
+	Fetches a list of Portal Orders within a specified date range or linked with a Sales Order, using pagination.
 
 	At least one of date_time_from, or sales_order parameters are required
 	"""
@@ -1186,7 +1187,7 @@ def add_tax_details(sales_order, price, desc, tax_account_head):
 
 def get_tax_inc_price_for_woocommerce_line_item(line_item: dict):
 	"""
-	WooCommerce's Line Item "price" field will always show the tax excluding amount.
+	Portal's Line Item "price" field will always show the tax excluding amount.
 	This function calculates the tax inclusive rate for an item
 	"""
 	return (
@@ -1196,7 +1197,7 @@ def get_tax_inc_price_for_woocommerce_line_item(line_item: dict):
 
 def create_placeholder_item(sales_order: SalesOrder):
 	"""
-	Create a placeholder Item for deleted WooCommerce Products
+	Create a placeholder Item for deleted Portal Products
 	"""
 	wc_server = frappe.get_cached_doc(
 		"WooCommerce Server", sales_order.woocommerce_server

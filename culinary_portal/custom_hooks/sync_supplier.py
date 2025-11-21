@@ -6,7 +6,10 @@ from culinary_portal.custom_hooks.create_item import (
     get_base_url,
     get_consumer_key,
     get_consumer_secret,
-    get_wo_url
+    get_wo_url,
+    get_wp_user,
+    get_wp_app_key,
+    get_vendor_category_id
 )
 
 
@@ -19,7 +22,7 @@ def _build_image_src(image_path: Optional[str]) -> str:
 
 
 def _post_wc_category(name: str,  slug: Optional[str] = None, parent_id: Optional[int] = None) -> Optional[int]:
-    """WooCommerce kategori oluşturur ve id döner; hata halinde None."""
+    """Portal kategori oluşturur ve id döner; hata halinde None."""
     print(f"\n\n\n DEBUG:55 name: {name}, slug: {slug}, parent_id: {parent_id}")
     try:
         
@@ -51,19 +54,19 @@ def _post_wc_category(name: str,  slug: Optional[str] = None, parent_id: Optiona
             data = resp.json()
             return data.get("id") if isinstance(data, dict) else None
         frappe.log_error(
-            title="WooCommerce Category POST Error (Supplier)",
+            title="Portal Category POST Error (Supplier)",
             message=f"Status: {resp.status_code}\nResponse: {resp.text}",
         )
     except Exception:
         frappe.log_error(
-            title="WooCommerce Category POST Exception (Supplier)",
+            title="Portal Category POST Exception (Supplier)",
             message=frappe.get_traceback(),
         )
     return None
 
 
 def _update_wc_category(category_id: int, name: str, image_src: str, slug: Optional[str] = None, parent_id: Optional[int] = None) -> bool:
-    """Mevcut WooCommerce kategoriyi günceller; başarılı olursa True döner."""
+    """Mevcut Portal kategoriyi günceller; başarılı olursa True döner."""
     try:
         url = f"{get_wo_url()}/wp-json/wc/v3/products/categories/{category_id}" 
         payload: dict = {
@@ -84,19 +87,19 @@ def _update_wc_category(category_id: int, name: str, image_src: str, slug: Optio
         if resp.status_code in (200, 201):
             return True
         frappe.log_error(
-            title="WooCommerce Category UPDATE Error (Supplier)",
+            title="Portal Category UPDATE Error (Supplier)",
             message=f"Status: {resp.status_code}\nResponse: {resp.text}",
         )
     except Exception:
         frappe.log_error(
-            title="WooCommerce Category UPDATE Exception (Supplier)",
+            title="Portal Category UPDATE Exception (Supplier)",
             message=frappe.get_traceback(),
         )
     return False
 
 
 def _delete_wc_category(category_id: int, force_delete: bool = True) -> bool:
-    """WooCommerce kategorisini siler; başarılı olursa True döner."""
+    """Portal kategorisini siler; başarılı olursa True döner."""
     try:
         url = f"{get_wo_url()}/wp-json/wc/v3/products/categories/{category_id}" 
         params = {"force": force_delete} if force_delete else {}
@@ -109,19 +112,19 @@ def _delete_wc_category(category_id: int, force_delete: bool = True) -> bool:
         if resp.status_code in (200, 204):
             return True
         frappe.log_error(
-            title="WooCommerce Category DELETE Error (Supplier)",
+            title="Portal Category DELETE Error (Supplier)",
             message=f"Status: {resp.status_code}\nResponse: {resp.text}",
         )
     except Exception:
         frappe.log_error(
-            title="WooCommerce Category DELETE Exception (Supplier)",
+            title="Portal Category DELETE Exception (Supplier)",
             message=frappe.get_traceback(),
         )
     return False
 
 
 def handle_supplier_sync(doc, method=None, old=None, new=None, merge: bool = False):
-    """Supplier oluşturulduğunda/güncellendiğinde WooCommerce'te kategori oluşturur veya günceller."""
+    """Supplier oluşturulduğunda/güncellendiğinde Portal'te kategori oluşturur veya günceller."""
     try:
         if getattr(doc.flags, "culinary_wc_supplier_sync_ran", False):
             return
@@ -131,8 +134,14 @@ def handle_supplier_sync(doc, method=None, old=None, new=None, merge: bool = Fal
         name = getattr(doc, "supplier_name", None) or getattr(doc, "name", None) or ""
         image_src = _build_image_src(getattr(doc, "image", None))
         slug = getattr(doc, "custom_woocommerce_slug", None) or (name.lower().replace(" ", "-") if name else None)
-        parent_id = 303  # Varsayılan üst kategori
+        
+        # Vendor kategori ID'sini dinamik olarak al
+        parent_id = get_vendor_category_id()
+        if not parent_id:
+            frappe.throw(frappe._("Lütfen 'Vendor' ürün grubunu oluşturun ve WooCommerce kategori ID'sini tanımlayın"))
+        
         print(f"\n\n\n DEBUG:1 exixting Category id: {existing_wc_id}")
+        print(f"\n\n\n DEBUG:1 Vendor parent_id: {parent_id}")
 
         if existing_wc_id:
             updated = _update_wc_category(
@@ -144,7 +153,7 @@ def handle_supplier_sync(doc, method=None, old=None, new=None, merge: bool = Fal
             )
             if not updated:
                 frappe.log_error(
-                    title="WooCommerce Supplier Category Update Failed",
+                    title="Portal Supplier Category Update Failed",
                     message=f"Failed to update category {existing_wc_id} for Supplier {doc.name}",
                 )
         else:
@@ -158,30 +167,30 @@ def handle_supplier_sync(doc, method=None, old=None, new=None, merge: bool = Fal
                     frappe.db.commit()
                 except Exception:
                     frappe.log_error(
-                        title="Supplier WooCommerce Category ID Update Error",
+                        title="Supplier Portal Category ID Update Error",
                         message=frappe.get_traceback(),
                     )
     except Exception:
         frappe.log_error(
-            title="Supplier WooCommerce Category Sync Error",
+            title="Supplier Portal Category Sync Error",
             message=frappe.get_traceback(),
         )
 
 
 def handle_supplier_on_trash(doc, method=None):
-    """Supplier silindiğinde WooCommerce'teki karşılık gelen kategoriyi de siler."""
+    """Supplier silindiğinde Portal'teki karşılık gelen kategoriyi de siler."""
     try:
         existing_wc_id = getattr(doc, "custom_woocommerce_category_id", None)
         if existing_wc_id:
             deleted = _delete_wc_category(existing_wc_id)
             if not deleted:
                 frappe.log_error(
-                    title="WooCommerce Supplier Category Delete Failed",
+                    title="Portal Supplier Category Delete Failed",
                     message=f"Failed to delete category {existing_wc_id} for Supplier {doc.name}",
                 )
     except Exception:
         frappe.log_error(
-            title="Supplier WooCommerce Category Delete Sync Error",
+            title="Supplier Portal Category Delete Sync Error",
             message=frappe.get_traceback(),
         )
 
@@ -198,7 +207,7 @@ def _fetch_all_dokan_stores():
         try:
             resp = requests.get(
                 url,
-                auth=(get_consumer_key(), get_consumer_secret()),
+                auth=(get_wp_user(), get_wp_app_key()),
                 params={"per_page": per_page, "page": page},
                 headers={"Content-Type": "application/json"},
                 timeout=40,
@@ -420,4 +429,89 @@ def bulk_sync_dokan_vendors(supplier_names):
         return {
             "status": "error",
             "message": frappe._("Bulk sync error: {0}").format(str(e))
+        }
+
+
+@frappe.whitelist()
+def toggle_customer_status(customer_name):
+    """Customer'ı enable/disable eder"""
+    try:
+        if not customer_name:
+            return {"status": "error", "message": frappe._("Customer name not found")}
+        
+        # Customer'ı al
+        customer_doc = frappe.db.get_value(
+            "Customer",
+            customer_name,
+            ["name", "customer_name", "disabled", "custom_portal_user_id"],
+            as_dict=True
+        )
+        
+        if not customer_doc:
+            return {
+                "status": "error",
+                "message": frappe._("Customer not found: '{0}'").format(customer_name)
+            }
+        
+        customer_display_name = customer_doc.get("customer_name") or customer_name
+        
+        # WordPress User ID'yi al - custom_portal_user_id'yi direkt kullan
+        wp_user_id = customer_doc.get("custom_portal_user_id")
+        
+        # custom_portal_user_id kontrolü
+        if not wp_user_id or wp_user_id == 0:
+            return {
+                "status": "error",
+                "message": frappe._("Customer does not have WordPress User ID (custom_portal_user_id)")
+            }
+        
+        # Mevcut durumu kontrol et ve tersine çevir
+        current_disabled = customer_doc.get("disabled", 0) or 0
+        new_disabled = 1 if current_disabled == 0 else 0
+        new_role = "customerpendinginfo" if new_disabled == 1 else "customer"
+        
+        # WordPress User API'ye PUT isteği at (role güncellemesi için)
+        url = f"{get_wo_url()}/wp-json/wp/v2/users/{wp_user_id}"
+        payload = {"roles": [new_role]}
+        
+        resp = requests.put(
+            url,
+            auth=(get_wp_user(), get_wp_app_key()),
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=40,
+        )
+        
+        if resp.status_code not in (200, 201):
+            frappe.log_error(
+                title="Customer Status Toggle Error",
+                message=f"User ID: {wp_user_id}\nEmail: {customer_doc.get('email_id')}\nStatus: {resp.status_code}\nResponse: {resp.text}",
+            )
+            return {
+                "status": "error",
+                "message": frappe._("Failed to update customer role in WooCommerce. Status: {0}, Response: {1}").format(resp.status_code, resp.text[:200])
+            }
+        
+        # Customer doctype'ındaki disabled alanını güncelle
+        frappe.db.set_value("Customer", customer_doc.name, "disabled", new_disabled)
+        frappe.db.commit()
+        
+        status_text = frappe._("disabled") if new_disabled == 1 else frappe._("enabled")
+        
+        return {
+            "status": "success",
+            "message": frappe._("Customer '{0}' has been {1}").format(customer_display_name, status_text),
+            "customer_name": customer_display_name,
+            "disabled": new_disabled,
+            "role": new_role
+        }
+        
+    except Exception as e:
+        frappe.log_error(
+            title="Customer Status Toggle Exception",
+            message=frappe.get_traceback()
+        )
+        return {
+            "status": "error",
+            "message": frappe._("Error: {0}").format(str(e))
         }

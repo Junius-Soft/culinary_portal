@@ -13,7 +13,7 @@ from culinary_portal.culinary_portal.doctype.woocommerce_server.woocommerce_serv
 
 class SynchroniseWooCommerce:
 	"""
-	Class for managing synchronisation of WooCommerce data with ERPNext data
+	Class for managing synchronisation of Portal data with ERPNext data
 	"""
 
 	servers: List[WooCommerceServer | _dict]
@@ -31,13 +31,13 @@ def log_and_raise_error(err):
 	"""
 	Create an "Error Log" and raise error
 	"""
-	log = frappe.log_error("WooCommerce Error", err)
+	log = frappe.log_error("Portal Error", err)
 	log_link = frappe.utils.get_link_to_form("Error Log", log.name)
 	frappe.throw(
-		msg=_("Something went wrong while connecting to WooCommerce. See Error Log {0}").format(
+		msg=_("Something went wrong while connecting to Portal. See Error Log {0}").format(
 			log_link
 		),
-		title=_("WooCommerce Error"),
+		title=_("Portal Error"),
 	)
 	raise err
 

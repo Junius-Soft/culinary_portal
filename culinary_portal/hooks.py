@@ -12,6 +12,9 @@ fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Culinary Portal"]]},
     # {"dt": "Client Script", "filters": [["module", "=", "Culinary Portal"]]},
     # {"dt": "Item Group"},
+    # {"dt": "Item"},
+    # {"dt": "Supplier"},
+    # {"dt": "Customer"},
 ]
 
 # required_apps = []
@@ -56,7 +59,8 @@ fixtures = [
 
 doctype_js = {
 	"Item": "public/js/item.js",
-	"Supplier": "public/js/supplier.js"
+	"Supplier": "public/js/supplier.js",
+	# "Customer": "public/js/customer.js"
 }
 
 doctype_list_js = {
@@ -166,11 +170,11 @@ doc_events = {
 		"on_update": "culinary_portal.custom_hooks.create_item.handle_item_saved",
 		"on_trash": "culinary_portal.custom_hooks.delete_item.handle_item_deleted",
 	},
- 	"Item Price": {
+	"Item Price": {
 		# "after_insert": "culinary_portal.custom_hooks.create_item.handle_item_saved",
 		"on_update": "culinary_portal.custom_hooks.create_item.handle_item_saved",
 	},
-   	"Item Group": {
+	"Item Group": {
 		"on_update": "culinary_portal.custom_hooks.create_category.handle_item_group_after_insert",
 		"after_rename": "culinary_portal.custom_hooks.create_category.handle_item_group_after_insert",
 		"on_trash": "culinary_portal.custom_hooks.create_category.handle_item_group_on_trash",
@@ -179,7 +183,27 @@ doc_events = {
 		"on_update": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_sync",
 		"after_rename": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_sync",
 		"on_trash": "culinary_portal.custom_hooks.sync_supplier.handle_supplier_on_trash",
-	}
+	},
+	"Customer": {
+		"validate": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_status_by_role",
+		"before_save": "culinary_portal.custom_hooks.create_agreement.create_agreements_for_customer",
+		"after_insert": "culinary_portal.custom_hooks.create_agreement.create_agreements_for_customer_after_insert",
+		"on_update": [
+			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_role_sync",
+			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_b2b_group",
+			"culinary_portal.custom_hooks.create_b2b_group.handle_customer_wordpress_sync",
+			"culinary_portal.custom_hooks.create_agreement.create_agreements_for_customer_on_update",
+			"culinary_portal.custom_hooks.attach_customer_files.attach_customer_files_on_update",
+		],
+		"on_trash": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_on_trash",
+	},
+	"Address": {
+		"on_update": "culinary_portal.custom_hooks.create_b2b_group.handle_address_wordpress_sync",
+	},
+	"Agreement": {
+		"on_submit": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
+		"on_cancel": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_cancelled",
+	},
 }
 
 # Scheduled Tasks

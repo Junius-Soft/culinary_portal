@@ -1,0 +1,50 @@
+Sync Dokan Vendor,Sync Dokan Vendor
+Agreement category visibility updated successfully,Agreement category visibility updated successfully
+Category {0} updated successfully,Category {0} updated successfully
+Agreement categories sync completed,Agreement categories sync completed
+No categories to update,No categories to update
+Customer B2B Group ID not found,Customer B2B Group ID not found
+No item groups found in agreement items,No item groups found in agreement items
+Agreement cancelled - categories disabled,Agreement cancelled - categories disabled
+Category {0} disabled successfully,Category {0} disabled successfully
+Agreement categories visibility disabled,Agreement categories visibility disabled
+WooCommerce,WooCommerce
+Sync Dokan Store for {0}?,Sync Dokan Store for {0}?
+Checking Dokan Stores...,Checking Dokan Stores...
+Store Not Found,Store Not Found
+Searched name,Searched name
+Total stores,Total stores
+Note: Store name must match exactly with Supplier Name.,Note: Store name must match exactly with Supplier Name.
+Error,Error
+API Error,API Error
+Could not connect to Dokan API.,Could not connect to Dokan API.
+Bulk Sync Dokan Vendors,Bulk Sync Dokan Vendors
+Please select at least one Supplier,Please select at least one Supplier
+Sync Dokan Vendors for {0} Suppliers?,Sync Dokan Vendors for {0} Suppliers?
+Selected Suppliers,Selected Suppliers
+Syncing Dokan Stores...,Syncing Dokan Stores...
+Bulk Sync Completed,Bulk Sync Completed
+Sync Results,Sync Results
+OK,OK
+Supplier name not found,Supplier name not found
+Could not fetch Dokan Stores,Could not fetch Dokan Stores
+Dokan Vendor found and matched,Dokan Vendor found and matched
+No Dokan Store found with name '{0}',No Dokan Store found with name '{0}'
+Error: {0},Error: {0}
+Valid supplier list not found,Valid supplier list not found
+✅ Matched: {0}<br>⚠️ Not Found: {1}<br>❌ Error: {2},✅ Matched: {0}<br>⚠️ Not Found: {1}<br>❌ Error: {2}
+Not Found,Not Found
+First 10 not found,First 10 not found
+Bulk sync error: {0},Bulk sync error: {0}
+Product has no price,Product has no price
+Product price not defined. Product will be added as Draft,Product price not defined. Product will be added as Draft
+Item successfully synchronized to WooCommerce,Item successfully synchronized to WooCommerce
+Item successfully synchronized to Portal,Item successfully synchronized to Portal
+Product successfully deleted from WooCommerce,Product successfully deleted from WooCommerce
+
+
+
+
+
+
+

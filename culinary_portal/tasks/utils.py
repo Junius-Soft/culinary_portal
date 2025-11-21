@@ -7,10 +7,10 @@ from woocommerce import API
 
 
 class APIWithRequestLogging(API):
-	"""WooCommerce API with Request Logging."""
+	"""Portal API with Request Logging."""
 
 	def _API__request(self, method, endpoint, data, params=None, **kwargs):
-		"""Override _request method to also create a 'WooCommerce Request Log'"""
+		"""Override _request method to also create a 'Portal Request Log'"""
 		result = None
 		try:
 			result = super()._API__request(method, endpoint, data, params, **kwargs)
@@ -44,9 +44,9 @@ class APIWithRequestLogging(API):
 @redis_cache(ttl=86400)
 def is_woocommerce_request_logging_enabled(woocommerce_server_url: str) -> bool:
 	"""
-	Checks if WooCommerce request logging is enabled for the given WooCommerce server URL.
+	Checks if Portal request logging is enabled for the given Portal server URL.
 	Args:
-	        woocommerce_server_url (str): The URL of the WooCommerce server.
+	        woocommerce_server_url (str): The URL of the Portal server.
 	Returns:
 	        bool: True if request logging is enabled, False otherwise.
 	"""

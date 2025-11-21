@@ -112,3 +112,43 @@ def create_order_from_woocommerce2(payload=None, submit=0):
     """Create a Sales Order from given payload. Returns created document as dict.
     """
     pass
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def create_customer_from_restaurant():
+    """Restaurant Registration webhook"""
+    try:
+        import json
+        if frappe.request.method != 'POST':
+            return {"success": False, "error": "Method not allowed"}
+        data = None
+        try:
+            data = frappe.request.get_json()
+        except:
+            data = frappe.form_dict
+        if data and hasattr(data, 'items'):
+            data = dict(data)
+        if not data:
+            return {"success": False, "error": "No data"}
+        company = data.get('text_2', '').strip()
+        email = data.get('email_1', '').strip()
+        if not company or not email:
+            return {"success": False, "error": "Missing data"}
+        existing = frappe.db.get_value("Customer", {"email_id": email}, "name")
+        if existing:
+            return {"success": True, "customer_name": existing}
+        customer = frappe.get_doc({
+            "doctype": "Customer",
+            "customer_name": company,
+            "customer_type": "Company",
+            "customer_group": "All Customer Groups",
+            "territory": "All Territories",
+            "email_id": email,
+            "woocommerce_identifier": email,
+            "mobile_no": data.get('phone_1', ''),
+        })
+        customer.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return {"success": True, "customer_name": customer.name}
+    except Exception as e:
+        frappe.log_error(f"Restaurant Customer Error: {str(e)}\n{frappe.get_traceback()}")
+        return {"success": False, "error": str(e)}

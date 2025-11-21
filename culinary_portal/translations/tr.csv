@@ -29,6 +29,22 @@ First 10 not found,İlk 10 bulunamayan
 Bulk sync error: {0},Toplu eşleştirme hatası: {0}
 Product has no price,Ürünün fiyatı yok
 Product price not defined. Product will be added as Draft,Ürün fiyatı tanımlanmadı. Ürün Draft olarak eklenecektir
-Item successfully synchronized to WooCommerce,Item WooCommerce'e başarıyla senkronize edildi
+Item successfully synchronized to WooCommerce,Ürün WooCommerce'e başarıyla senkronize edildi
+Item successfully synchronized to Portal,Ürün Portal'e başarıyla senkronize edildi
 Product successfully deleted from WooCommerce,Ürün WooCommerce'den başarıyla silindi
+B2B Group created successfully: {0},B2B Group başarıyla oluşturuldu: {0}
+Error occurred while creating B2B Group,B2B Group oluşturulurken hata oluştu
+An error occurred while creating B2B Group,B2B Group oluşturulurken bir hata oluştu
+Customer name not found,Müşteri adı bulunamadı
+B2B Group created successfully,B2B Group başarıyla oluşturuldu
+Failed to create B2B Group,B2B Group oluşturulamadı
+Agreement category visibility updated successfully,Agreement kategori görünürlüğü başarıyla güncellendi
+Category {0} updated successfully,Kategori {0} başarıyla güncellendi
+Agreement categories sync completed,Agreement kategorileri senkronizasyonu tamamlandı
+No categories to update,Güncellenecek kategori yok
+Customer B2B Group ID not found,Müşteri B2B Group ID bulunamadı
+No item groups found in agreement items,Agreement öğelerinde ürün grubu bulunamadı
+Agreement cancelled - categories disabled,Agreement iptal edildi - kategoriler devre dışı bırakıldı
+Category {0} disabled successfully,Kategori {0} başarıyla devre dışı bırakıldı
+Agreement categories visibility disabled,Agreement kategorileri görünürlüğü kapatıldı
 
