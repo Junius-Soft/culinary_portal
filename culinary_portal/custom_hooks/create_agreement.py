@@ -140,8 +140,8 @@ def create_agreements_for_customer(doc, method=None):
 					
 					# Agreement yoksa oluştur
 					if not existing_agreement:
-						print(f"\n\n\n DEBUG-AGREEMENT-19 Agreement oluşturuluyor: Customer={doc.name}, Supplier={new_supplier}")
-						_create_agreement(doc.name, new_supplier)
+						print(f"\n\n\n DEBUG-AGREEMENT-19 Agreement oluşturuluyor: Customer={doc.name}, Supplier={new_supplier}, Vendor Index={idx}")
+						_create_agreement(doc.name, new_supplier, vendor_index=idx)
 					else:
 						print(f"\n\n\n DEBUG-AGREEMENT-20 Agreement zaten mevcut, atlanıyor")
 				else:
@@ -160,13 +160,14 @@ def create_agreements_for_customer(doc, method=None):
 		)
 
 
-def _create_agreement(customer_name, supplier_name):
+def _create_agreement(customer_name, supplier_name, vendor_index=None):
 	"""
 	Agreement oluşturur.
 	
 	Args:
 		customer_name: Customer name
 		supplier_name: Supplier name
+		vendor_index: Vendor index (1, 2, veya 3) - hangi marken-vendor_X için oluşturuluyor
 	"""
 	print(f"\n\n\n ========== _CREATE_AGREEMENT BAŞLADI ==========")
 	print(f"\n\n\n DEBUG-AGREEMENT-CREATE-1 Customer: {customer_name}, Supplier: {supplier_name}")
@@ -314,6 +315,32 @@ def _create_agreement(customer_name, supplier_name):
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8 {len(agreement_doc.agreement_items)} ürün Agreement Items'a eklendi")
 		
+		# Services değerlerini ekle (vendor_index varsa)
+		if vendor_index and vendor_index in [1, 2, 3]:
+			# Customer'dan ilgili services değerini al
+			customer_doc = frappe.get_doc("Customer", customer_name)
+			services_field = f"custom_brands_{vendor_index}"
+			services_value = getattr(customer_doc, services_field, "") or ""
+			
+			print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8.1 Services field: {services_field}, Value: {services_value}")
+			
+			if services_value:
+				# Virgülle ayrılmış değerleri al
+				services_list = [s.strip() for s in services_value.split(",") if s.strip()]
+				
+				print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8.2 {len(services_list)} service bulundu: {services_list}")
+				
+				# Her bir service'i Agreement Services table'ına ekle
+				for service in services_list:
+					agreement_doc.append("custom_services", {
+						"service": service
+					})
+					print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8.3 Service eklendi: {service}")
+				
+				print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8.4 Toplam {len(agreement_doc.custom_services)} service eklendi")
+			else:
+				print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8.5 Services değeri boş, atlanıyor")
+		
 		agreement_doc.flags.ignore_permissions = True
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-9 Agreement insert ediliyor...")
@@ -365,8 +392,8 @@ def create_agreements_for_customer_after_insert(doc, method=None):
 			if supplier:
 				print(f"\n\n\n DEBUG-AGREEMENT-AI-4 Vendor {idx} bulundu: {supplier}")
 				if frappe.db.exists("Supplier", supplier):
-					print(f"\n\n\n DEBUG-AGREEMENT-AI-5 Supplier mevcut, agreement oluşturuluyor")
-					_create_agreement(doc.name, supplier)
+					print(f"\n\n\n DEBUG-AGREEMENT-AI-5 Supplier mevcut, agreement oluşturuluyor (Vendor Index={idx})")
+					_create_agreement(doc.name, supplier, vendor_index=idx)
 				else:
 					print(f"\n\n\n DEBUG-AGREEMENT-AI-6 Supplier mevcut değil: {supplier}")
 		
@@ -427,8 +454,8 @@ def create_agreements_for_customer_on_update(doc, method=None):
 				
 				# Agreement yoksa oluştur
 				if not existing_agreement:
-					print(f"\n\n\n DEBUG-AGREEMENT-OU-4 Agreement oluşturuluyor: Customer={doc.name}, Supplier={supplier}")
-					_create_agreement(doc.name, supplier)
+					print(f"\n\n\n DEBUG-AGREEMENT-OU-4 Agreement oluşturuluyor: Customer={doc.name}, Supplier={supplier}, Vendor Index={idx}")
+					_create_agreement(doc.name, supplier, vendor_index=idx)
 				else:
 					print(f"\n\n\n DEBUG-AGREEMENT-OU-5 Agreement zaten mevcut, atlanıyor")
 		
