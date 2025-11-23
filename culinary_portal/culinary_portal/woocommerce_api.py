@@ -24,21 +24,22 @@ class WooCommerceAPI:
 
 
 class WooCommerceResource(Document):
-
-	wc_api_list: Optional[List[WooCommerceAPI]] = None
-	current_wc_api: Optional[WooCommerceAPI] = None
+	wc_api_list: list[WooCommerceAPI] | None = None
+	current_wc_api: WooCommerceAPI | None = None
 
 	resource: str = None
 	child_resource: str = None
-	field_setter_map: Dict = None
+	field_setter_map: dict = None
 
 	@staticmethod
-	def _init_api() -> List[WooCommerceAPI]:
+	def _init_api() -> list[WooCommerceAPI]:
 		"""
 		Initialise the WooCommerce API
 		"""
 		wc_servers = frappe.get_all("WooCommerce Server")
-		wc_servers = [frappe.get_doc("WooCommerce Server", server.name) for server in wc_servers]
+		wc_servers = [
+			frappe.get_doc("WooCommerce Server", server.name) for server in wc_servers
+		]
 
 		wc_api_list = [
 			WooCommerceAPI(
@@ -57,7 +58,9 @@ class WooCommerceResource(Document):
 		]
 
 		if len(wc_api_list) == 0:
-			frappe.throw(_("At least one WooCommerce Server should be Enabled"), SyncDisabledError)
+			frappe.throw(
+				_("At least one WooCommerce Server should be Enabled"), SyncDisabledError
+			)
 
 		return wc_api_list
 
@@ -96,25 +99,30 @@ class WooCommerceResource(Document):
 			self.init_api()
 
 		# Parse the server domain and record_id from the Document name
-		wc_server_domain, record_id = get_domain_and_id_from_woocommerce_record_name(self.name)
+		wc_server_domain, record_id = get_domain_and_id_from_woocommerce_record_name(
+			self.name
+		)
 
 		# Select the relevant WooCommerce server
 		self.current_wc_api = next(
-			(api for api in self.wc_api_list if wc_server_domain in api.woocommerce_server_url), None
+			(
+				api
+				for api in self.wc_api_list
+				if wc_server_domain in api.woocommerce_server_url
+			),
+			None,
 		)
 
 		# Get WooCommerce Record
 		try:
 			record = self.current_wc_api.api.get(f"{self.resource}/{record_id}").json()
-		except Exception as err:
-			error_text = (
-				f"load_from_db failed (WooCommerce {self.resource} #{record_id})\n\n{frappe.get_traceback()}"
-			)
+		except Exception:
+			error_text = f"load_from_db failed (WooCommerce {self.resource} #{record_id})\n\n{frappe.get_traceback()}"
 			log_and_raise_error(error_text)
 
 		if "id" not in record:
 			log_and_raise_error(
-				error_text=f"load_from_db failed (WooCommerce {self.resource} #{record_id})\nOrder:\n{str(record)}"
+				error_text=f"load_from_db failed (WooCommerce {self.resource} #{record_id})\nOrder:\n{record!s}"
 			)
 
 		record = self.pre_init_document(
@@ -124,14 +132,14 @@ class WooCommerceResource(Document):
 
 		self.call_super_init(record)
 
-	def call_super_init(self, record: Dict):
+	def call_super_init(self, record: dict):
 		super(Document, self).__init__(record)
 
-	def after_load_from_db(self, record: Dict):
+	def after_load_from_db(self, record: dict):
 		return record
 
 	@classmethod
-	def get_list_of_records(cls, args) -> list[Union[Dict, "WooCommerceResource"]]:
+	def get_list_of_records(cls, args) -> list[Union[dict, "WooCommerceResource"]]:
 		"""
 		Returns List of WooCommerce Records (List view and Report view).
 
@@ -146,7 +154,9 @@ class WooCommerceResource(Document):
 			wc_records_per_page_limit = 100
 
 			# Map Frappe query parameters to WooCommerce query parameters
-			params = {}
+			# Dokan Plugin creates sub orders, to get only parent orders add a param {"parent": "0"}
+			params = {"parent": "0"}
+
 			per_page = (
 				min(int(args["page_length"]), wc_records_per_page_limit)
 				if args and "page_length" in args
@@ -156,7 +166,7 @@ class WooCommerceResource(Document):
 			params["per_page"] = min(per_page + offset, wc_records_per_page_limit)
 
 			# Map Frappe filters to WooCommerce parameters
-			if "filters" in args and args["filters"]:
+			if args.get("filters"):
 				updated_params = get_wc_parameters_from_filters(args["filters"])
 				params.update(updated_params)
 
@@ -189,8 +199,10 @@ class WooCommerceResource(Document):
 				else:
 					try:
 						count_of_total_records_in_api = len(response.json())
-					except Exception as err:
-						log_and_raise_error(error_text="Unexpected response", response=response)
+					except Exception:
+						log_and_raise_error(
+							error_text="Unexpected response", response=response
+						)
 
 				# Skip this API if all its records fall before the required offset
 				if count_of_total_records_in_api <= offset - total_processed:
@@ -214,7 +226,10 @@ class WooCommerceResource(Document):
 
 					# Add frappe fields to records
 					for record in results[start:end]:
-						cls.pre_init_document(record=record, woocommerce_server_url=wc_server.woocommerce_server_url)
+						cls.pre_init_document(
+							record=record,
+							woocommerce_server_url=wc_server.woocommerce_server_url,
+						)
 
 						cls.during_get_list_of_records(record, args)
 
@@ -234,7 +249,9 @@ class WooCommerceResource(Document):
 					except Exception as err:
 						log_and_raise_error(err, error_text="get_list failed")
 					if response.status_code != 200:
-						log_and_raise_error(error_text="get_list failed", response=response)
+						log_and_raise_error(
+							error_text="get_list failed", response=response
+						)
 					results = response.json()
 
 			if args.get("as_doc", None):
@@ -287,7 +304,11 @@ class WooCommerceResource(Document):
 
 		# Select the relevant WooCommerce server
 		self.current_wc_api = next(
-			(api for api in self.wc_api_list if self.woocommerce_server == api.woocommerce_server),
+			(
+				api
+				for api in self.wc_api_list
+				if self.woocommerce_server == api.woocommerce_server
+			),
 			None,
 		)
 
@@ -311,7 +332,7 @@ class WooCommerceResource(Document):
 		self.woocommerce_id = response.json()["id"]
 		self.woocommerce_date_modified = response.json()["date_modified"]
 
-	def before_db_insert(self, record: Dict):
+	def before_db_insert(self, record: dict):
 		return record
 
 	def db_update(self, *args, **kwargs):
@@ -330,14 +351,17 @@ class WooCommerceResource(Document):
 
 		# Drop fields with values that are unchanged
 		record_data_before_save = self._doc_before_save.to_dict()
-		record_before_save = self.deserialize_attributes_of_type_dict_or_list(record_data_before_save)
+		record_before_save = self.deserialize_attributes_of_type_dict_or_list(
+			record_data_before_save
+		)
 		if self.field_setter_map:
 			for new_key, old_key in self.field_setter_map.items():
 				record_before_save[old_key] = record_before_save[new_key]
 		keys_to_pop = [
 			key
 			for key, value in record.items()
-			if record_before_save.get(key) == value or str(record_before_save.get(key)) == str(value)
+			if record_before_save.get(key) == value
+			or str(record_before_save.get(key)) == str(value)
 		]
 		for key in keys_to_pop:
 			record.pop(key)
@@ -347,7 +371,12 @@ class WooCommerceResource(Document):
 
 		# Select the relevant WooCommerce server
 		self.current_wc_api = next(
-			(api for api in self.wc_api_list if wc_server_domain in api.woocommerce_server_url), None
+			(
+				api
+				for api in self.wc_api_list
+				if wc_server_domain in api.woocommerce_server_url
+			),
+			None,
 		)
 
 		# Make API call
@@ -367,7 +396,7 @@ class WooCommerceResource(Document):
 		self.after_db_update()
 
 	@classmethod
-	def pre_init_document(cls, record: Dict, woocommerce_server_url: str):
+	def pre_init_document(cls, record: dict, woocommerce_server_url: str):
 		"""
 		Set values on dictionary that are required for frappe Document initialisation aka frappe.new_doc()
 		"""
@@ -407,7 +436,7 @@ class WooCommerceResource(Document):
 
 		return record
 
-	def before_db_update(self, record: Dict):
+	def before_db_update(self, record: dict):
 		return record
 
 	def after_db_update(self):
@@ -420,7 +449,9 @@ class WooCommerceResource(Document):
 		"""
 		Convert this Document to a dict
 		"""
-		doc_dict = {field.fieldname: self.get(field.fieldname) for field in self.meta.fields}
+		doc_dict = {
+			field.fieldname: self.get(field.fieldname) for field in self.meta.fields
+		}
 		doc_dict["name"] = self.name  # name field is not in meta.fields
 		return doc_dict
 
@@ -448,7 +479,7 @@ class WooCommerceResource(Document):
 		"""
 		json_fields = cls.get_json_fields()
 		for field in json_fields:
-			if field.fieldname in obj and obj[field.fieldname]:
+			if obj.get(field.fieldname):
 				obj[field.fieldname] = json.loads(obj[field.fieldname])
 		return obj
 
@@ -474,9 +505,7 @@ def generate_woocommerce_record_name_from_domain_and_id(
 
 	E.g. "site1.example.com~11"
 	"""
-	return "{domain}{delimiter}{resource_id}".format(
-		domain=domain, delimiter=delimiter, resource_id=str(resource_id)
-	)
+	return f"{domain}{delimiter}{resource_id!s}"
 
 
 def get_wc_parameters_from_filters(filters):
@@ -576,9 +605,9 @@ def log_and_raise_error(exception=None, error_text=None, response=None):
 	log = frappe.log_error("WooCommerce Error", error_message)
 	log_link = frappe.utils.get_link_to_form("Error Log", log.name)
 	frappe.throw(
-		msg=_("Something went wrong while connecting to WooCommerce. See Error Log {0}").format(
-			log_link
-		),
+		msg=_(
+			"Something went wrong while connecting to WooCommerce. See Error Log {0}"
+		).format(log_link),
 		title=_("WooCommerce Error"),
 	)
 	if exception:
@@ -594,7 +623,7 @@ def parse_domain_from_url(url: str):
 
 def get_domain_and_id_from_woocommerce_record_name(
 	name: str, delimiter: str = WC_RESOURCE_DELIMITER
-) -> Tuple[str, int]:
+) -> tuple[str, int]:
 	"""
 	Get domain and record_id from woocommerce_order name
 
