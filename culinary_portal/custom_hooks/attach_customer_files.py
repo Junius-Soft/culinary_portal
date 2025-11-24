@@ -115,7 +115,7 @@ def attach_customer_files_on_update(doc, method=None):
 					dt="Customer",
 					dn=doc.name,
 					df=field_name,
-					is_private=0,
+					is_private=1,
 				)
 
 				print(f"\n\n\n DEBUG-FILE-7 {field_name} başariyla indirildi ve attach edildi: {file_doc.name}")
