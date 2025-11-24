@@ -125,6 +125,72 @@ def handle_agreement_saved(doc, method=None):
             print(f"Errors: {error_count}/{len(unique_wc_category_ids)}")
             print(f"======================\n\n\n")
         
+        # Agreement submit edildiğinde oluşturulan Item Price'ları WordPress'e senkronize et
+        if hasattr(doc, 'customer') and doc.customer and hasattr(doc, 'agreement_items') and doc.agreement_items:
+            print(f"\n\n\n=== Agreement Submit - Item Price Sync Başladı ===")
+            print(f"Agreement: {doc.name}")
+            print(f"Customer: {doc.customer}")
+            
+            # Agreement'ın customer'ı price_list adı olarak kullanılıyor
+            price_list_name = doc.customer
+            
+            # Agreement items'daki item'ları topla
+            item_codes = []
+            for item in doc.agreement_items:
+                if hasattr(item, 'item_code') and item.item_code:
+                    item_codes.append(item.item_code)
+            
+            print(f"Agreement items'daki item sayısı: {len(item_codes)}")
+            
+            if item_codes:
+                # Bu item'lar için Item Price'ları bul
+                item_prices = frappe.db.get_list(
+                    "Item Price",
+                    filters={
+                        "price_list": price_list_name,
+                        "item_code": ["in", item_codes],
+                    },
+                    fields=["name", "item_code"],
+                    limit_page_length=0,
+                )
+                
+                print(f"Bulunan Item Price sayısı: {len(item_prices)}")
+                
+                # Her Item Price için WordPress'e senkronize et
+                synced_items = set()
+                for item_price in item_prices:
+                    item_code = item_price.get("item_code")
+                    item_price_name = item_price.get("name")
+                    
+                    # Aynı item için birden fazla Item Price varsa sadece bir kez sync et
+                    if item_code and item_code not in synced_items:
+                        try:
+                            print(f"Item Price sync ediliyor: {item_price_name} (Item: {item_code})")
+                            # Queue'ya ekle
+                            frappe.enqueue(
+                                "culinary_portal.custom_hooks.create_item.sync_item_to_woocommerce",
+                                doctype="Item Price",
+                                docname=item_price_name,
+                                skip_price_update=False,
+                                queue="default",
+                                timeout=300,
+                                now=False,
+                            )
+                            synced_items.add(item_code)
+                            print(f"✅ Item Price {item_price_name} queue'ya eklendi")
+                        except Exception as e:
+                            print(f"❌ Item Price {item_price_name} sync hatası: {str(e)}")
+                            frappe.log_error(
+                                title=f"Agreement Item Price Sync Error - {item_price_name}",
+                                message=f"Item Price: {item_price_name}\nItem: {item_code}\n{frappe.get_traceback()}"
+                            )
+                
+                print(f"Toplam {len(synced_items)} item WordPress'e senkronize edilecek")
+            else:
+                print("Agreement items'da item bulunamadı")
+            
+            print(f"=== Agreement Submit - Item Price Sync Bitti ===\n\n\n")
+        
     except Exception:
         frappe.log_error(
             title="Agreement Item Groups Print Error",
