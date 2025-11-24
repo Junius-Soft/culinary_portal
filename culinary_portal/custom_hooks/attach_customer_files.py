@@ -52,11 +52,6 @@ def attach_customer_files_on_update(doc, method=None):
 	print(f"\n\n\n DEBUG-FILE-1 Customer: {doc.name}")
 	
 	try:
-		# WordPress sync'ten gelen update'leri atla
-		if getattr(doc.flags, "skip_wordpress_sync", False):
-			print("\n\n\n DEBUG-FILE-2 WordPress sync flag var, hook atlanıyor")
-			return
-		
 		# Flag kontrolü - tekrar çalışmasını önle
 		if getattr(doc.flags, "culinary_file_attach_ran", False):
 			print("\n\n\n DEBUG-FILE-3 Flag var, hook atlanıyor")
