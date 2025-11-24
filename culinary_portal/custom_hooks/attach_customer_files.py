@@ -71,25 +71,24 @@ def attach_customer_files_on_update(doc, method=None):
 
 			print(f"\n\n\n DEBUG-FILE-5 {field_name} bulundu: {file_url}")
 
+			# Sadece uzak URL'leri isle (http/https ile baslayanlar)
+			if not file_url.startswith(("http://", "https://")):
+				print(f"\n\n\n DEBUG-FILE-4 {field_name} yerel dosya, atlaniyor: {file_url}")
+				continue
+
 			file_name = build_file_name(document_title, file_url)
-			existing_file = frappe.get_all(
+
+			# Ayni field için mevcut dosyayi bul
+			existing_files = frappe.get_all(
 				"File",
 				{
 					"attached_to_doctype": "Customer",
 					"attached_to_name": doc.name,
 					"attached_to_field": field_name,
 				},
-				["name", "file_url", "description"],
+				["name", "file_url"],
 				limit=1,
 			)
-			file_to_remove = None
-
-			if existing_file:
-				file_to_remove = existing_file[0].name
-
-				if is_local_file_url(existing_file[0].file_url) and existing_file[0].description == file_url:
-					print(f"\n\n\n DEBUG-FILE-6 {field_name} için yerel dosya zaten var: {existing_file[0].name}")
-					continue
 
 			# Dosyayi indir ve attach et
 			try:
@@ -103,6 +102,13 @@ def attach_customer_files_on_update(doc, method=None):
 				continue
 
 			try:
+				# Eski dosyayi sil (varsa)
+				if existing_files:
+					for old_file in existing_files:
+						if old_file.name:
+							frappe.delete_doc("File", old_file.name, ignore_permissions=True)
+							print(f"\n\n\n DEBUG-FILE-6 {field_name} için eski dosya silindi: {old_file.name}")
+
 				file_doc = save_file(
 					fname=file_name,
 					content=file_content,
@@ -112,19 +118,7 @@ def attach_customer_files_on_update(doc, method=None):
 					is_private=0,
 				)
 
-				# Kaynaği takip edebilmek için orijinal URL'i description'a yaz
-				frappe.db.set_value(
-					"File",
-					file_doc.name,
-					"description",
-					file_url,
-					update_modified=False,
-				)
-
 				print(f"\n\n\n DEBUG-FILE-7 {field_name} başariyla indirildi ve attach edildi: {file_doc.name}")
-
-				if file_to_remove and file_to_remove != file_doc.name:
-					frappe.delete_doc("File", file_to_remove, ignore_permissions=True)
 
 			except Exception as e:
 				print(f"\n\n\n DEBUG-FILE-ERROR {field_name} attach hatasi: {str(e)}")
