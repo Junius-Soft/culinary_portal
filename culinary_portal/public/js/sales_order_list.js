@@ -106,17 +106,17 @@
 			style.innerHTML = `
 				.list-row.sales-order-sub .list-row-col.list-subject {
 					padding-left: 1.75rem;
+					position: relative;
 				}
 				.list-row.sales-order-sub .list-row-col.list-subject::before {
 					content: "";
 					position: absolute;
-					left: 0.75rem;
-					top: 50%;
-					width: 0.5rem;
-					height: 0.5rem;
-					border-radius: 50%;
-					background: var(--gray-500, #999);
-					transform: translateY(-50%);
+					left: 0.5rem;
+					top: 0;
+					bottom: 0;
+					width: 0;
+					border-left: 1px solid var(--gray-600, rgba(255, 255, 255, 0.1));
+					pointer-events: none;
 				}
 			`;
 
