@@ -64,7 +64,8 @@ doctype_js = {
 }
 
 doctype_list_js = {
-	"Supplier": "public/js/supplier_list.js"
+	"Supplier": "public/js/supplier_list.js",
+	"Sales Order": "public/js/sales_order_list.js",
 }
 
 # Svg Icons
