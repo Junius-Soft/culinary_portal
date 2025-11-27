@@ -247,18 +247,7 @@ def get_tax_category_from_item(item_code: str, item_data: dict | None = None, do
 	# Önce doc'tan dene (en pratik ve güvenli yöntem)
 	if doc and hasattr(doc, "custom_portal_tax_rate"):
 		tax_rate = doc.custom_portal_tax_rate
-	
-	# Doc'ta yoksa item_data'dan dene
-	if tax_rate is None and item_data:
-		tax_rate = item_data.get("custom_portal_tax_rate")
-	
-	# Hala yoksa veritabanından çek (fallback)
-	if tax_rate is None:
-		try:
-			tax_rate = frappe.db.get_value("Item", item_code, "custom_portal_tax_rate")
-		except Exception as e:
-			print(f"DEBUG: custom_portal_tax_rate DB sorgusu hatası: {e}")
-			return None
+
 	
 	# Değere göre tax_class belirle
 	if tax_rate is None:
