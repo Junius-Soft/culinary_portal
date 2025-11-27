@@ -207,15 +207,17 @@ def update_wordpress_user_from_customer(customer_doc):
 			"facebook": getattr(customer_doc, "custom_facebook", "") or "",
 			"additional_profile_urls": getattr(customer_doc, "custom_profile_url", "") or "",
 			"company_name": getattr(customer_doc, "custom_company_name", "") or "",
+			"restaurant_name": getattr(customer_doc, "custom_restaurant_name", "") or "",
+			"inhaberin": getattr(customer_doc, "custom_managing_director", "") or "",
 			"reference": getattr(customer_doc, "custom_reference", "") or "",
 			"user_phone": getattr(customer_doc, "custom_telephone_number", "") or "",
 			"company_type": getattr(customer_doc, "custom_company_type", "") or "",
 			"steuernummer": getattr(customer_doc, "custom_tax_id_number", "") or "",
 			"umsatzsteuer": getattr(customer_doc, "custom_vat_identification", "") or "",
-			"firmenvertreter_name": getattr(customer_doc, "custom_company_representative_name", "") or "",
-			"firmenvertreter_surname": getattr(customer_doc, "custom_company_representative_surname", "") or "",
-			"firmenvertreter_phone": getattr(customer_doc, "custom_company_representative_phone", "") or "",
-			"firmenvertreter_email": getattr(customer_doc, "custom_company_representative_email", "") or "",
+			"firmenvertreter_name": getattr(customer_doc, "custom_company_representive_name", "") or "",
+			"firmenvertreter_surname": getattr(customer_doc, "custom_company_representive_surname", "") or "",
+			"firmenvertreter_phone": getattr(customer_doc, "custom_company_representive_phone", "") or "",
+			"firmenvertreter_email": getattr(customer_doc, "custom_company_representive_email", "") or "",
 			"kontaktperson__name": getattr(customer_doc, "custom_contact_person", "") or "",
 			"kontaktperson__email": getattr(customer_doc, "custom_contact_person_email", "") or "",
 			"kontaktperson__phone": getattr(customer_doc, "custom_contact_person_phone", "") or "",
@@ -331,14 +333,15 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	# İngilizce custom field'lar (resimdeki alan isimleri)
 	customer_doc.custom_company_name = extract_meta_value(meta_data, "company_name")
 	customer_doc.custom_restaurant_name=extract_meta_value(meta_data, "restaurant_name")
+	customer_doc.custom_managing_director=extract_meta_value(meta_data, "inhaberin")
 	customer_doc.custom_reference = extract_meta_value(meta_data, "reference")
 	customer_doc.custom_telephone_number = extract_meta_value(meta_data, "user_phone")
 	customer_doc.custom_company_type = extract_meta_value(meta_data, "company_type")
 	customer_doc.custom_tax_id_number = extract_meta_value(meta_data, "steuernummer")
 	customer_doc.custom_vat_identification = extract_meta_value(meta_data, "umsatzsteuer")
-	customer_doc.custom_company_representative_name = extract_meta_value(meta_data, "firmenvertreter_name")
-	customer_doc.custom_company_representative_surname = extract_meta_value(meta_data, "firmenvertreter_surname")
-	customer_doc.custom_company_representative_phone = extract_meta_value(meta_data, "firmenvertreter_phone")
+	customer_doc.custom_company_representive_name = extract_meta_value(meta_data, "firmenvertreter_name")
+	customer_doc.custom_company_representive_surname = extract_meta_value(meta_data, "firmenvertreter_surname")
+	customer_doc.custom_company_representive_phone = extract_meta_value(meta_data, "firmenvertreter_phone")
 	customer_doc.custom_contact_person = extract_meta_value(meta_data, "kontaktperson__name")
 	customer_doc.custom_contact_person_email = extract_meta_value(meta_data, "kontaktperson__email")
 	customer_doc.custom_contact_person_phone = extract_meta_value(meta_data, "kontaktperson__phone")
