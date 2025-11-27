@@ -706,7 +706,7 @@ def handle_item_saved(doc, method=None):
 		only_tax_update=only_tax_update,
 		queue="default",
 		timeout=300,  # 5 dakika timeout
-		now=True,  # Arka planda çalışsın
+		now=False,  # Arka planda çalışsın
 	)
 	print(f"DEBUG: {doc.doctype} {doc.name} queue'ya eklendi (skip_price_update={skip_price_update})")
 
