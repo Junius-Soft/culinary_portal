@@ -170,7 +170,7 @@ doc_events = {
 	"Item": {
 		# "after_insert": "culinary_portal.custom_hooks.create_item.handle_item_saved",
 		"on_update": [
-			"culinary_portal.custom_hooks.create_item.handle_item_saved",
+			# "culinary_portal.custom_hooks.create_item.handle_item_saved",
 			"culinary_portal.custom_hooks.create_item.handle_zero_rate_tax_class",
 		],
 		"on_trash": "culinary_portal.custom_hooks.delete_item.handle_item_deleted",
