@@ -262,28 +262,28 @@ def get_tax_category_from_item(item_code: str, item_data: dict | None = None, do
 	
 	# Değere göre tax_class belirle
 	if tax_rate is None:
+		print(f"DEBUG: custom_portal_tax_rate None - item_code: {item_code}")
 		return None
 	
-	# Float veya int olabilir, karşılaştırma için float'a çevir
-	try:
-		tax_rate_float = float(tax_rate)
-	except (ValueError, TypeError):
-		print(f"DEBUG: custom_portal_tax_rate geçersiz değer: {tax_rate}")
-		return None
+	# String olarak kontrol et (% 7, % 19, % 0 formatında)
+	tax_rate_str = str(tax_rate).strip()
+	print(f"DEBUG: custom_portal_tax_rate değeri: '{tax_rate_str}' (tip: {type(tax_rate).__name__}) - item_code: {item_code}")
 	
-	# Tax class eşleştirmesi
-	if tax_rate_float == 7:
+	# Tax class eşleştirmesi - string kontrolü
+	if tax_rate_str == "% 7" or tax_rate_str == "7" or tax_rate_str == "7.0":
 		tax_class = "standard"
-	elif tax_rate_float == 19:
+		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: '{tax_rate_str}')")
+	elif tax_rate_str == "% 19" or tax_rate_str == "19" or tax_rate_str == "19.0":
 		tax_class = "reduced rate"
-	elif tax_rate_float == 0:
+		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: '{tax_rate_str}')")
+	elif tax_rate_str == "% 0" or tax_rate_str == "0" or tax_rate_str == "0.0":
 		tax_class = "zero rate"
+		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: '{tax_rate_str}')")
 	else:
 		# Tanımlı olmayan değerler için None döndür
-		print(f"DEBUG: custom_portal_tax_rate tanımlı olmayan değer: {tax_rate_float}")
+		print(f"DEBUG: custom_portal_tax_rate tanımlı olmayan değer: '{tax_rate_str}' - item_code: {item_code}")
 		return None
 	
-	print(f"DEBUG: tax_class belirlendi: {tax_class} (tax_rate: {tax_rate_float})")
 	return tax_class
 
 
