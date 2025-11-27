@@ -330,6 +330,7 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	
 	# İngilizce custom field'lar (resimdeki alan isimleri)
 	customer_doc.custom_company_name = extract_meta_value(meta_data, "company_name")
+	customer_doc.custom_restaurant_name=extract_meta_value(meta_data, "restaurant_name")
 	customer_doc.custom_reference = extract_meta_value(meta_data, "reference")
 	customer_doc.custom_telephone_number = extract_meta_value(meta_data, "user_phone")
 	customer_doc.custom_company_type = extract_meta_value(meta_data, "company_type")
