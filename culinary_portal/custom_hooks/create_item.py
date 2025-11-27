@@ -894,6 +894,14 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 	try:
 		url = f"{get_wo_url()}/wp-json/wc/v3/products"
 
+		# DEBUG: tax_class ve temel payload bilgilerini her zaman logla
+		print(
+			f"DEBUG: send_to_woocommerce çağrıldı - item_code={item_code}, "
+			f"existing_wc_id={existing_wc_id}, payload_keys={list(payload.keys())}"
+		)
+		if "tax_class" in payload:
+			print(f"DEBUG: send_to_woocommerce payload.tax_class = '{payload.get('tax_class')}'")
+
 		# Meta_data kontrolü ve log
 		if "meta_data" in payload:
 			meta_data_count = len(payload.get("meta_data", []))
@@ -939,6 +947,10 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 		if response.status_code in (200, 201):
 			response_data = response.json()
 			wc_product_id = response_data.get("id")
+			print(
+				f"DEBUG: send_to_woocommerce SUCCESS - status={response.status_code}, "
+				f"wc_product_id={wc_product_id}, response.tax_class='{response_data.get('tax_class')}'"
+			)
 			
 			# Response'daki meta_data'yı kontrol et
 			if "meta_data" in response_data:
