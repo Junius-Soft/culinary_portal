@@ -305,6 +305,74 @@ def get_tax_category_from_item(item_code: str, item_data: dict | None = None, do
 	return tax_class
 
 
+@frappe.whitelist()
+def update_item_tax_class_in_woocommerce(item_code: str) -> dict:
+	"""Sadece tax_class alanını Portal'de günceller (manual buton ile çağrılır)."""
+	if not item_code:
+		frappe.throw(frappe._("Item code is required"))
+
+	if not frappe.has_permission("Item", "write", item_code):
+		frappe.throw(frappe._("Not permitted to update this Item"))
+
+	item_doc = frappe.get_doc("Item", item_code)
+	item_data = item_doc.as_dict()
+
+	consumer_key = get_consumer_key()
+	consumer_secret = get_consumer_secret()
+
+	if not consumer_key or not consumer_secret:
+		return {
+			"status": "error",
+			"message": frappe._("Portal API credentials are not configured"),
+		}
+
+	# Tax class'ı hesapla
+	tax_class = get_tax_category_from_item(item_code, item_data=item_data, doc=item_doc)
+	if tax_class is None:
+		return {
+			"status": "error",
+			"message": frappe._("Portal tax rate is not set or invalid"),
+		}
+
+	# WooCommerce ürün ID'sini al
+	wc_product_id = frappe.db.get_value(
+		"Item", {"name": item_code}, "custom_woocommerce_id"
+	)
+	if not wc_product_id:
+		return {
+			"status": "error",
+			"message": frappe._("Item has no Portal ID"),
+		}
+
+	payload = {"tax_class": tax_class}
+	print(
+		f"DEBUG: Manual tax_class update - item_code={item_code}, wc_id={wc_product_id}, payload={payload}"
+	)
+
+	try:
+		send_to_woocommerce(
+			payload,
+			consumer_key,
+			consumer_secret,
+			item_code,
+			wc_product_id,
+		)
+		return {
+			"status": "success",
+			"message": frappe._("Tax class successfully updated on Portal"),
+			"tax_class": tax_class,
+		}
+	except Exception:
+		frappe.log_error(
+			title="Manual Tax Class Update Error",
+			message=frappe.get_traceback(),
+		)
+		return {
+			"status": "error",
+			"message": frappe._("Unexpected error while updating tax class on Portal"),
+		}
+
+
 def get_uom_meta_data(item_code: str, item_data: dict | None = None, doc=None) -> list[dict]:
 	"""Item için UOM meta_data bilgilerini döndürür"""
 	uom_meta = []
