@@ -622,6 +622,25 @@ def handle_item_saved(doc, method=None):
 				skip_price_update = True
 				print(f"DEBUG: Item {doc.name} - Fiyat değişmedi, sadece fiyat dışı alanlar güncellenecek")
 
+	# Queue'ya ATM almadan önce tax debug'larını yazdır (senkron görebilmek için)
+	if doc.doctype == "Item":
+		try:
+			raw_tax_rate = getattr(doc, "custom_portal_tax_rate", None)
+			print(
+				f"DEBUG: Item {doc.name} - custom_portal_tax_rate (doc): {raw_tax_rate}"
+			)
+			# Fonksiyonun ne ürettiğini queue'ya gitmeden logla
+			tax_class_preview = get_tax_category_from_item(
+				doc.name, item_data=doc.as_dict(), doc=doc
+			)
+			print(
+				f"DEBUG: Item {doc.name} - tax_class (preview, enqueue öncesi): {tax_class_preview}"
+			)
+		except Exception as e:
+			print(
+				f"DEBUG: Item {doc.name} - tax_class preview sırasında hata: {e}"
+			)
+
 	# Queue'ya ekle
 	frappe.enqueue(
 		"culinary_portal.custom_hooks.create_item.sync_item_to_woocommerce",
