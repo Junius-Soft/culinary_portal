@@ -871,20 +871,21 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 			if wc_product_id and not is_meta_only_update:
 				update_dokan_post_author(item_code, wc_product_id)
 
-			# WooCommerce ürünü başarıyla oluştu/güncellendi, şimdi tax_class'ı zero-rate yap
+			# WooCommerce ürünü başarıyla oluştu/güncellendi, şimdi tax_class'ı Item.custom_portal_tax_rate'e göre ayarla
 			if wc_product_id:
 				try:
 					frappe.enqueue(
-						"culinary_portal.custom_hooks.create_item.set_zero_rate_tax_class_for_item",
-						custom_woocommerce_id=wc_product_id,
+						"culinary_portal.custom_hooks.create_item.set_portal_tax_class_for_item",
+						item_code=item_code,
+						wc_product_id=wc_product_id,
 						queue="default",
 						timeout=120,
 						now=False,
 					)
-					print(f"DEBUG: zero_rate tax_class enqueue edildi - WC ID: {wc_product_id}")
+					print(f"DEBUG: tax_class enqueue edildi - WC ID: {wc_product_id}, Item: {item_code}")
 				except Exception:
 					frappe.log_error(
-						title="Zero Rate Tax Class Enqueue Error",
+						title="Portal Tax Class Enqueue Error",
 						message=frappe.get_traceback(),
 					)
 
@@ -911,20 +912,50 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 		)
 
 
-def set_zero_rate_tax_class_for_item(custom_woocommerce_id: int | str):
-	"""Verilen WooCommerce ürün ID'si için tax_class alanını zero_rate olarak günceller."""
+def set_portal_tax_class_for_item(item_code: str, wc_product_id: int | str):
+	"""Item.custom_portal_tax_rate alanına göre WooCommerce ürün tax_class alanını günceller.
+
+	custom_portal_tax_rate:
+	- %0  -> zero-rate
+	- %7  -> standard
+	- %19 -> reduced-rate
+	"""
 	try:
-		if not custom_woocommerce_id:
+		if not item_code or not wc_product_id:
 			return
+
+		# Item üzerindeki custom_portal_tax_rate alanını al
+		raw_rate = frappe.db.get_value("Item", item_code, "custom_portal_tax_rate")
+		if raw_rate is None:
+			print(f"DEBUG: Item {item_code} için custom_portal_tax_rate tanımlı değil, tax_class güncellenmeyecek")
+			return
+
+		try:
+			rate_val = float(raw_rate)
+		except Exception:
+			print(f"DEBUG: Item {item_code} için custom_portal_tax_rate değeri sayıya çevrilemedi: {raw_rate}")
+			return
+
+		# Oranları tax_class ile eşleştir
+		if rate_val == 0:
+			tax_class = "zero-rate"
+		elif rate_val == 7:
+			tax_class = "standard"
+		elif rate_val == 19:
+			tax_class = "reduced-rate"
+		else:
+			# Beklenmeyen oranlar için şimdilik standard gönderelim
+			tax_class = "standard"
+			print(f"DEBUG: Item {item_code} için beklenmeyen tax rate {rate_val}, tax_class=standard olarak gönderilecek")
 
 		consumer_key = get_consumer_key()
 		consumer_secret = get_consumer_secret()
 
 		# ID'yi string'e çevir, URL'de kullanacağız
-		product_id = str(custom_woocommerce_id)
+		product_id = str(wc_product_id)
 
 		url = f"{get_wo_url()}/wp-json/wc/v3/products/{product_id}"
-		payload = {"tax_class": "zero-rate"}
+		payload = {"tax_class": tax_class}
 
 		response = requests.put(
 			url,
@@ -934,17 +965,17 @@ def set_zero_rate_tax_class_for_item(custom_woocommerce_id: int | str):
 		)
 
 		if response.status_code in (200, 201):
-			print(f"✅ WooCommerce ürün tax_class zero_rate olarak güncellendi - ID: {product_id}")
+			print(f"✅ WooCommerce ürün tax_class '{tax_class}' olarak güncellendi - ID: {product_id}")
 		else:
 			err_msg = f"Status: {response.status_code}\nResponse: {response.text}"
-			print(f"❌ WooCommerce tax_class güncelleme hatası - ID: {product_id} -> {err_msg}")
+			print(f"❌ WooCommerce tax_class güncelleme hatası - ID: {product_id}, tax_class={tax_class} -> {err_msg}")
 			frappe.log_error(
-				title="WooCommerce Zero Rate Tax Class Error",
+				title="WooCommerce Tax Class Error",
 				message=err_msg,
 			)
 	except Exception:
 		frappe.log_error(
-			title="Zero Rate Tax Class Error",
+			title="Portal Tax Class Error",
 			message=frappe.get_traceback(),
 		)
 
