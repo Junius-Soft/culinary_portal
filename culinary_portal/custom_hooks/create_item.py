@@ -874,6 +874,10 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 			# WooCommerce ürünü başarıyla oluştu/güncellendi, şimdi tax_class'ı Item.custom_portal_tax_rate'e göre ayarla
 			if wc_product_id:
 				try:
+					print(
+						f"DEBUG: send_to_woocommerce içinde tax_class enqueue ediliyor - "
+						f"Item: {item_code}, WC ID: {wc_product_id}"
+					)
 					frappe.enqueue(
 						"culinary_portal.custom_hooks.create_item.set_portal_tax_class_for_item",
 						item_code=item_code,
@@ -922,7 +926,11 @@ def set_portal_tax_class_for_item(item_code: str, wc_product_id: int | str):
 	"""
 	try:
 		if not item_code or not wc_product_id:
+			print(f"DEBUG: set_portal_tax_class_for_item çağrıldı fakat item_code veya wc_product_id yok "
+			      f"(item_code={item_code}, wc_product_id={wc_product_id})")
 			return
+
+		print(f"DEBUG: set_portal_tax_class_for_item başladı - Item: {item_code}, WC ID: {wc_product_id}")
 
 		# Item üzerindeki custom_portal_tax_rate alanını al
 		raw_rate = frappe.db.get_value("Item", item_code, "custom_portal_tax_rate")
@@ -930,23 +938,24 @@ def set_portal_tax_class_for_item(item_code: str, wc_product_id: int | str):
 			print(f"DEBUG: Item {item_code} için custom_portal_tax_rate tanımlı değil, tax_class güncellenmeyecek")
 			return
 
-		try:
-			rate_val = float(raw_rate)
-		except Exception:
-			print(f"DEBUG: Item {item_code} için custom_portal_tax_rate değeri sayıya çevrilemedi: {raw_rate}")
-			return
+		# Değeri string olarak normalize et
+		rate_str = str(raw_rate).strip()
+		print(f"DEBUG: Item {item_code} custom_portal_tax_rate raw_value='{raw_rate}', normalized='{rate_str}'")
 
 		# Oranları tax_class ile eşleştir
-		if rate_val == 0:
+		if rate_str in ("0", "0.0", "0,0"):
 			tax_class = "zero-rate"
-		elif rate_val == 7:
+		elif rate_str in ("7", "7.0", "7,0"):
 			tax_class = "standard"
-		elif rate_val == 19:
+		elif rate_str in ("19", "19.0", "19,0"):
 			tax_class = "reduced-rate"
 		else:
 			# Beklenmeyen oranlar için şimdilik standard gönderelim
 			tax_class = "standard"
-			print(f"DEBUG: Item {item_code} için beklenmeyen tax rate {rate_val}, tax_class=standard olarak gönderilecek")
+			print(
+				f"DEBUG: Item {item_code} için beklenmeyen tax rate değeri '{rate_str}', "
+				f"tax_class=standard olarak gönderilecek"
+			)
 
 		consumer_key = get_consumer_key()
 		consumer_secret = get_consumer_secret()
@@ -956,6 +965,7 @@ def set_portal_tax_class_for_item(item_code: str, wc_product_id: int | str):
 
 		url = f"{get_wo_url()}/wp-json/wc/v3/products/{product_id}"
 		payload = {"tax_class": tax_class}
+		print(f"DEBUG: WooCommerce tax_class isteği hazırlanıyor - URL: {url}, payload: {payload}")
 
 		response = requests.put(
 			url,
@@ -963,6 +973,8 @@ def set_portal_tax_class_for_item(item_code: str, wc_product_id: int | str):
 			json=payload,
 			headers={"Content-Type": "application/json"},
 		)
+
+		print(f"DEBUG: WooCommerce tax_class response status={response.status_code}, body={response.text}")
 
 		if response.status_code in (200, 201):
 			print(f"✅ WooCommerce ürün tax_class '{tax_class}' olarak güncellendi - ID: {product_id}")
