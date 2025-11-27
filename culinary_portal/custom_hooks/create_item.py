@@ -871,6 +871,23 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 			if wc_product_id and not is_meta_only_update:
 				update_dokan_post_author(item_code, wc_product_id)
 
+			# WooCommerce ürünü başarıyla oluştu/güncellendi, şimdi tax_class'ı zero-rate yap
+			if wc_product_id:
+				try:
+					frappe.enqueue(
+						"culinary_portal.custom_hooks.create_item.set_zero_rate_tax_class_for_item",
+						custom_woocommerce_id=wc_product_id,
+						queue="default",
+						timeout=120,
+						now=False,
+					)
+					print(f"DEBUG: zero_rate tax_class enqueue edildi - WC ID: {wc_product_id}")
+				except Exception:
+					frappe.log_error(
+						title="Zero Rate Tax Class Enqueue Error",
+						message=frappe.get_traceback(),
+					)
+
 			# frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 			print("\n\n\n DEBUG:2 wc_product_id", payload)
 		else:
@@ -890,35 +907,6 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 	except Exception as e:
 		frappe.log_error(
 			title="Portal Send Error",
-			message=frappe.get_traceback(),
-		)
-
-
-def handle_zero_rate_tax_class(doc, method=None):
-	"""DocType event üzerinden çağrılır; Item için zero_rate tax_class güncellemesini kuyruklar."""
-	try:
-		if doc.doctype != "Item":
-			return
-
-		custom_wc_id = getattr(doc, "custom_woocommerce_id", None) or frappe.db.get_value(
-			"Item", doc.name, "custom_woocommerce_id"
-		)
-
-		if not custom_wc_id:
-			print(f"DEBUG: Item {doc.name} için custom_woocommerce_id bulunamadı, tax_class güncellenmeyecek")
-			return
-
-		frappe.enqueue(
-			"culinary_portal.custom_hooks.create_item.set_zero_rate_tax_class_for_item",
-			custom_woocommerce_id=custom_wc_id,
-			queue="default",
-			timeout=120,
-			now=True,
-		)
-		print(f"DEBUG: Item {doc.name} için zero_rate tax_class kuyruğa alındı (WC ID: {custom_wc_id})")
-	except Exception:
-		frappe.log_error(
-			title="Zero Rate Tax Class Enqueue Error",
 			message=frappe.get_traceback(),
 		)
 
