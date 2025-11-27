@@ -880,7 +880,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 						wc_product_id=wc_product_id,
 						queue="default",
 						timeout=120,
-						now=False,
+						now=True,
 					)
 					print(f"DEBUG: tax_class enqueue edildi - WC ID: {wc_product_id}, Item: {item_code}")
 				except Exception:
