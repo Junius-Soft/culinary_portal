@@ -235,9 +235,9 @@ def get_tax_category_from_item(item_code: str, item_data: dict | None = None, do
 	"""Item'ın custom_portal_tax_rate alanından değeri alıp tax_class'a dönüştürür.
 	
 	Değer eşleştirmeleri:
-	- 7 → "standard"
-	- 19 → "reduced rate"
-	- 0 → "zero rate"
+	- 7  → WooCommerce default (boş slug, standard rate)
+	- 19 → "reduced-rate"
+	- 0  → "zero-rate"
 	"""
 	if not item_code:
 		return None
@@ -271,13 +271,16 @@ def get_tax_category_from_item(item_code: str, item_data: dict | None = None, do
 	
 	# Tax class eşleştirmesi - string kontrolü
 	if tax_rate_str == "% 7" or tax_rate_str == "7" or tax_rate_str == "7.0":
-		tax_class = "standard"
+		# WooCommerce'de standard tax class için slug boş string'tir
+		tax_class = ""
 		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: '{tax_rate_str}')")
 	elif tax_rate_str == "% 19" or tax_rate_str == "19" or tax_rate_str == "19.0":
-		tax_class = "reduced rate"
+		# WooCommerce varsayılan slug: reduced-rate
+		tax_class = "reduced-rate"
 		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: '{tax_rate_str}')")
 	elif tax_rate_str == "% 0" or tax_rate_str == "0" or tax_rate_str == "0.0":
-		tax_class = "zero rate"
+		# WooCommerce varsayılan slug: zero-rate
+		tax_class = "zero-rate"
 		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: '{tax_rate_str}')")
 	else:
 		# Tanımlı olmayan değerler için None döndür
