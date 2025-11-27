@@ -442,7 +442,12 @@ def collect_customer_b2bking_groups_for_item(item_code: str) -> dict:
 	return {"meta_data": merged}
 
 
-def sync_item_to_woocommerce(doctype: str, docname: str, skip_price_update: bool = False):
+def sync_item_to_woocommerce(
+	doctype: str,
+	docname: str,
+	skip_price_update: bool = False,
+	only_tax_update: bool = False,
+):
 	"""Item veya Item Price'ı WordPress'e senkronize eder (queue'da çalışır)"""
 	try:
 		doc = frappe.get_doc(doctype, docname)
@@ -527,6 +532,41 @@ def sync_item_to_woocommerce(doctype: str, docname: str, skip_price_update: bool
 			print(f"DEBUG: Error getting category_id from Item Group: {e}")
 			category_id = None
 
+		# Eğer sadece tax_class güncellemesi isteniyorsa, minimal payload ile gönder
+		if only_tax_update:
+			item_code = payload.get("item_code") or doc.name
+			tax_class_value = get_tax_category_from_item(
+				item_code, item_data=payload, doc=doc
+			)
+			if not tax_class_value:
+				print(
+					f"DEBUG: Item {item_code} - only_tax_update aktif ama tax_class hesaplanamadı, işlem atlandı"
+				)
+				return
+
+			# Mevcut WooCommerce ID yoksa tax_class güncellemesi yapma
+			existing_wc_id = frappe.db.get_value(
+				"Item", {"name": item_code}, "custom_woocommerce_id"
+			)
+			if not existing_wc_id:
+				print(
+					f"DEBUG: Item {item_code} - only_tax_update için Portal ID yok, işlem atlandı"
+				)
+				return
+
+			wc_tax_payload = {"tax_class": tax_class_value}
+			print(
+				f"DEBUG: Item {item_code} - only_tax_update, minimal payload gönderiliyor: {wc_tax_payload}"
+			)
+			send_to_woocommerce(
+				wc_tax_payload,
+				consumer_key,
+				consumer_secret,
+				item_code,
+				existing_wc_id,
+			)
+			return
+
 		# Fiyat güncellemesi atlanacaksa, B2B fiyat meta_data'larını toplama
 		dynamic_meta = []
 		standard_price = None
@@ -602,6 +642,7 @@ def handle_item_saved(doc, method=None):
 
 	# Item güncellemesinde fiyat değişikliği kontrolü
 	skip_price_update = False
+	only_tax_update = False
 	if doc.doctype == "Item":
 		# Önceki değerleri kontrol et
 		doc_before_save = getattr(doc, "_doc_before_save", None)
@@ -609,6 +650,7 @@ def handle_item_saved(doc, method=None):
 			# Fiyat ile ilgili alanların değişip değişmediğini kontrol et
 			price_related_fields = ["standard_rate"]
 			price_changed = False
+			tax_changed = False
 			
 			for field in price_related_fields:
 				old_value = getattr(doc_before_save, field, None)
@@ -621,6 +663,20 @@ def handle_item_saved(doc, method=None):
 			if not price_changed:
 				skip_price_update = True
 				print(f"DEBUG: Item {doc.name} - Fiyat değişmedi, sadece fiyat dışı alanlar güncellenecek")
+
+			# custom_portal_tax_rate alanı değişti mi kontrol et
+			old_tax = getattr(doc_before_save, "custom_portal_tax_rate", None)
+			new_tax = getattr(doc, "custom_portal_tax_rate", None)
+			if old_tax != new_tax:
+				tax_changed = True
+				print(
+					f"DEBUG: Item {doc.name} - custom_portal_tax_rate değişti "
+					f"({old_tax} -> {new_tax}), only_tax_update=True"
+				)
+
+			# Eğer sadece tax değiştiyse (fiyat değişmemişse), minimal tax update kullan
+			if tax_changed and not price_changed:
+				only_tax_update = True
 
 	# Queue'ya ATM almadan önce tax debug'larını yazdır (senkron görebilmek için)
 	if doc.doctype == "Item":
@@ -647,6 +703,7 @@ def handle_item_saved(doc, method=None):
 		doctype=doc.doctype,
 		docname=doc.name,
 		skip_price_update=skip_price_update,
+		only_tax_update=only_tax_update,
 		queue="default",
 		timeout=300,  # 5 dakika timeout
 		now=True,  # Arka planda çalışsın
