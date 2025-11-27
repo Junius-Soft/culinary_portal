@@ -60,6 +60,7 @@ fixtures = [
 doctype_js = {
 	"Item": "public/js/item.js",
 	"Supplier": "public/js/supplier.js",
+	"Agreement": "public/js/agreement.js",
 	# "Customer": "public/js/customer.js"
 }
 
@@ -168,7 +169,10 @@ doctype_list_js = {
 doc_events = {
 	"Item": {
 		# "after_insert": "culinary_portal.custom_hooks.create_item.handle_item_saved",
-		"on_update": "culinary_portal.custom_hooks.create_item.handle_item_saved",
+		"on_update": [
+			"culinary_portal.custom_hooks.create_item.handle_item_saved",
+			"culinary_portal.custom_hooks.create_item.handle_zero_rate_tax_class",
+		],
 		"on_trash": "culinary_portal.custom_hooks.delete_item.handle_item_deleted",
 	},
 	"Item Price": {
@@ -202,7 +206,8 @@ doc_events = {
 		"on_update": "culinary_portal.custom_hooks.create_b2b_group.handle_address_wordpress_sync",
 	},
 	"Agreement": {
-		"on_submit": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
+		"validate": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_before_submit",
+		# "on_submit": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
 		"on_cancel": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_cancelled",
 	},
 }
