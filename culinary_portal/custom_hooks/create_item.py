@@ -614,8 +614,44 @@ def sync_item_to_woocommerce(
 			skip_price_update=skip_price_update,
 		)
 
+		item_code = payload.get("item_code")
+
 		# WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
-		send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
+		send_to_woocommerce(wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
+
+		# Geniş payload sonrası, tax_class bazı Woo mantıkları tarafından sıfırlanabiliyor.
+		# Bu nedenle aynı request içinde minimal bir tax_class güncellemesi daha yapıyoruz.
+		try:
+			tax_class_value = get_tax_category_from_item(
+				item_code, item_data=payload, doc=doc
+			)
+			if tax_class_value:
+				# İlk çağrı yeni ürün oluşturduysa, ID şimdi DB'de mevcut olacak.
+				forced_wc_id = frappe.db.get_value(
+					"Item", {"name": item_code}, "custom_woocommerce_id"
+				) or existing_wc_id
+
+				if forced_wc_id:
+					wc_tax_payload = {"tax_class": tax_class_value}
+					print(
+						f"DEBUG: Item {item_code} - full sync sonrası tax_class force update: {wc_tax_payload}, wc_id={forced_wc_id}"
+					)
+					send_to_woocommerce(
+						wc_tax_payload,
+						consumer_key,
+						consumer_secret,
+						item_code,
+						forced_wc_id,
+					)
+				else:
+					print(
+						f"DEBUG: Item {item_code} - full sync sonrası force tax_class update için Portal ID bulunamadı"
+					)
+		except Exception as e:
+			print(
+				f"DEBUG: Item {item_code} - full sync sonrası force tax_class update sırasında hata: {e}"
+			)
+
 		frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 		
 	except Exception as e:
@@ -706,7 +742,7 @@ def handle_item_saved(doc, method=None):
 		only_tax_update=only_tax_update,
 		queue="default",
 		timeout=300,  # 5 dakika timeout
-		now=False,  # Arka planda çalışsın
+		now=True,  # Arka planda çalışsın
 	)
 	print(f"DEBUG: {doc.doctype} {doc.name} queue'ya eklendi (skip_price_update={skip_price_update})")
 
