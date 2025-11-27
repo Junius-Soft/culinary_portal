@@ -939,8 +939,10 @@ def set_portal_tax_class_for_item(item_code: str, wc_product_id: int | str):
 			return
 
 		# Değeri string olarak normalize et
-		rate_str = str(raw_rate).strip()
-		print(f"DEBUG: Item {item_code} custom_portal_tax_rate raw_value='{raw_rate}', normalized='{rate_str}'")
+		raw_str = str(raw_rate)
+		# Örnek gelen değerler: "% 0", "%0", "0", "7", "% 19" vb.
+		rate_str = raw_str.replace("%", "").strip()
+		print(f"DEBUG: Item {item_code} custom_portal_tax_rate raw_value='{raw_str}', normalized='{rate_str}'")
 
 		# Oranları tax_class ile eşleştir
 		if rate_str in ("0", "0.0", "0,0"):
