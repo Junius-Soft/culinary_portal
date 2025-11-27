@@ -35,6 +35,34 @@ def extract_meta_value(meta_data, key):
 	return ""
 
 
+def truncate_url_field(value, max_length=500):
+	"""
+	URL field değerini max_length karaktere kadar kısaltır.
+	Eğer birden fazla URL varsa (virgülle ayrılmış), ilk URL'i alır veya toplam uzunluğu kısaltır.
+	"""
+	if not value:
+		return ""
+	
+	value_str = str(value).strip()
+	
+	# Eğer max_length'den kısaysa, olduğu gibi döndür
+	if len(value_str) <= max_length:
+		return value_str
+	
+	# Birden fazla URL varsa (virgülle ayrılmış), ilk URL'i al
+	if "," in value_str:
+		urls = [url.strip() for url in value_str.split(",")]
+		# İlk URL'i al ve uzunluğunu kontrol et
+		first_url = urls[0]
+		if len(first_url) <= max_length:
+			return first_url
+		# İlk URL bile çok uzunsa, kısalt
+		return first_url[:max_length]
+	
+	# Tek URL varsa ama çok uzunsa, kısalt
+	return value_str[:max_length]
+
+
 def map_country_to_name(country_name):
 	"""
 	Ülke adını (örn: Deutschland) veya code'unu Country doctype'ındaki name'e map eder
@@ -197,12 +225,22 @@ def update_wordpress_user_from_customer(customer_doc):
 			"ablaufdatum": getattr(customer_doc, "custom_expiry_date", "") or "",
 			"betriebsform": getattr(customer_doc, "custom_operating_form", "") or "",
 			"address_apartment": getattr(customer_doc, "address_apartment", "") or "",
-			# Dosya alanları (URL) - ERPNext -> WordPress
-			"gewerbeanmeldung_file": getattr(customer_doc, "custom_business_registration_file", "") or "",
-			"ausweis_file": getattr(customer_doc, "custom_id_file", "") or "",
-			"hr-auszug_file": getattr(customer_doc, "custom_hr_extract_file", "") or "",
-			"gesellschafterliste_file": getattr(customer_doc, "custom_shareholder_list_file", "") or "",
-			"register-auszug_file": getattr(customer_doc, "custom_register_extract_file", "") or "",
+			# Dosya alanları (URL) - ERPNext -> WordPress (truncate edilmiş)
+			"gewerbeanmeldung_file": truncate_url_field(
+				getattr(customer_doc, "custom_business_registration_file", "") or "", max_length=500
+			),
+			"ausweis_file": truncate_url_field(
+				getattr(customer_doc, "custom_id_file", "") or "", max_length=500
+			),
+			"hr-auszug_file": truncate_url_field(
+				getattr(customer_doc, "custom_hr_extract_file", "") or "", max_length=500
+			),
+			"gesellschafterliste_file": truncate_url_field(
+				getattr(customer_doc, "custom_shareholder_list_file", "") or "", max_length=500
+			),
+			"register-auszug_file": truncate_url_field(
+				getattr(customer_doc, "custom_register_extract_file", "") or "", max_length=500
+			),
 			# Marken services alanları - ERPNext -> WordPress
 			"marken_1_services": getattr(customer_doc, "custom_brands_1", "") or "",
 			"marken_2_services": getattr(customer_doc, "custom_brands_2", "") or "",
@@ -310,11 +348,22 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	customer_doc.custom_operating_form = extract_meta_value(meta_data, "betriebsform")
 	
 	# Dosya alanları (URL) - WordPress -> ERPNext
-	customer_doc.custom_business_registration_file = extract_meta_value(meta_data, "gewerbeanmeldung_file")
-	customer_doc.custom_id_file = extract_meta_value(meta_data, "ausweis_file")
-	customer_doc.custom_hr_extract_file = extract_meta_value(meta_data, "hr-auszug_file")
-	customer_doc.custom_shareholder_list_file = extract_meta_value(meta_data, "gesellschafterliste_file")
-	customer_doc.custom_register_extract_file = extract_meta_value(meta_data, "register-auszug_file")
+	# URL'leri truncate et (max 500 karakter - field definition'a göre)
+	customer_doc.custom_business_registration_file = truncate_url_field(
+		extract_meta_value(meta_data, "gewerbeanmeldung_file"), max_length=500
+	)
+	customer_doc.custom_id_file = truncate_url_field(
+		extract_meta_value(meta_data, "ausweis_file"), max_length=500
+	)
+	customer_doc.custom_hr_extract_file = truncate_url_field(
+		extract_meta_value(meta_data, "hr-auszug_file"), max_length=500
+	)
+	customer_doc.custom_shareholder_list_file = truncate_url_field(
+		extract_meta_value(meta_data, "gesellschafterliste_file"), max_length=500
+	)
+	customer_doc.custom_register_extract_file = truncate_url_field(
+		extract_meta_value(meta_data, "register-auszug_file"), max_length=500
+	)
 	
 	# Brands alanları - WordPress -> ERPNext
 	customer_doc.custom_brands_1 = extract_meta_value(meta_data, "marken_1_services")
