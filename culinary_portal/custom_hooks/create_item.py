@@ -231,148 +231,6 @@ def collect_customer_b2bking_group_for_price_list(item_code: str, price_list_nam
 	return {"meta_data": meta_data}
 
 
-def get_tax_category_from_item(item_code: str, item_data: dict | None = None, doc=None) -> str | None:
-	"""Item'ın custom_portal_tax_rate alanından değeri alıp tax_class'a dönüştürür.
-	
-	Değer eşleştirmeleri:
-	- 7  → WooCommerce default (boş slug, standard rate)
-	- 19 → "reduced-rate"
-	- 0  → "zero-rate"
-	"""
-	if not item_code:
-		return None
-	
-	tax_rate = None
-	
-	# Önce doc'tan dene (en pratik ve güvenli yöntem)
-	if doc and hasattr(doc, "custom_portal_tax_rate"):
-		tax_rate = doc.custom_portal_tax_rate
-
-	
-	# Değere göre tax_class belirle
-	if tax_rate is None:
-		print(f"DEBUG: custom_portal_tax_rate None - item_code: {item_code}")
-		return None
-	
-	# String normalize et (%, boşluk, virgül vs.)
-	tax_rate_str_raw = str(tax_rate)
-	tax_rate_str = tax_rate_str_raw.strip()
-	print(
-		f"DEBUG: custom_portal_tax_rate ham değer: '{tax_rate_str_raw}' -> normalize öncesi: '{tax_rate_str}' "
-		f"(tip: {type(tax_rate).__name__}) - item_code: {item_code}"
-	)
-
-	# '% 7,00' gibi formatları sayıya çevirmek için temizle
-	normalized = (
-		tax_rate_str.replace("%", "")
-		.replace(" ", "")
-		.replace(",", ".")
-	)
-
-	try:
-		tax_rate_val = float(normalized)
-	except (ValueError, TypeError):
-		print(
-			f"DEBUG: custom_portal_tax_rate sayıya çevrilemedi: '{tax_rate_str}' -> '{normalized}' - item_code: {item_code}"
-		)
-		return None
-
-	print(
-		f"DEBUG: custom_portal_tax_rate normalize edilmiş: {tax_rate_val} - item_code: {item_code}"
-	)
-
-	# Tax class eşleştirmesi - sayısal kontrol
-	if abs(tax_rate_val - 7.0) < 0.001:
-		# WooCommerce'de standard tax class için slug boş string'tir
-		tax_class = ""
-		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: {tax_rate_val})")
-	elif abs(tax_rate_val - 19.0) < 0.001:
-		# WooCommerce varsayılan slug: reduced-rate
-		tax_class = "reduced-rate"
-		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: {tax_rate_val})")
-	elif abs(tax_rate_val - 0.0) < 0.001:
-		# WooCommerce varsayılan slug: zero-rate
-		tax_class = "zero-rate"
-		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: {tax_rate_val})")
-	else:
-		# Tanımlı olmayan değerler için None döndür
-		print(
-			f"DEBUG: custom_portal_tax_rate tanımlı olmayan değer: {tax_rate_val} "
-			f"(ham: '{tax_rate_str}') - item_code: {item_code}"
-		)
-		return None
-	
-	return tax_class
-
-
-@frappe.whitelist()
-def update_item_tax_class_in_woocommerce(item_code: str) -> dict:
-	"""Sadece tax_class alanını Portal'de günceller (manual buton ile çağrılır)."""
-	if not item_code:
-		frappe.throw(frappe._("Item code is required"))
-
-	if not frappe.has_permission("Item", "write", item_code):
-		frappe.throw(frappe._("Not permitted to update this Item"))
-
-	item_doc = frappe.get_doc("Item", item_code)
-	item_data = item_doc.as_dict()
-
-	consumer_key = get_consumer_key()
-	consumer_secret = get_consumer_secret()
-
-	if not consumer_key or not consumer_secret:
-		return {
-			"status": "error",
-			"message": frappe._("Portal API credentials are not configured"),
-		}
-
-	# Tax class'ı hesapla
-	tax_class = get_tax_category_from_item(item_code, item_data=item_data, doc=item_doc)
-	if tax_class is None:
-		return {
-			"status": "error",
-			"message": frappe._("Portal tax rate is not set or invalid"),
-		}
-
-	# WooCommerce ürün ID'sini al
-	wc_product_id = frappe.db.get_value(
-		"Item", {"name": item_code}, "custom_woocommerce_id"
-	)
-	if not wc_product_id:
-		return {
-			"status": "error",
-			"message": frappe._("Item has no Portal ID"),
-		}
-
-	payload = {"tax_class": tax_class}
-	print(
-		f"DEBUG: Manual tax_class update - item_code={item_code}, wc_id={wc_product_id}, payload={payload}"
-	)
-
-	try:
-		send_to_woocommerce(
-			payload,
-			consumer_key,
-			consumer_secret,
-			item_code,
-			wc_product_id,
-		)
-		return {
-			"status": "success",
-			"message": frappe._("Tax class successfully updated on Portal"),
-			"tax_class": tax_class,
-		}
-	except Exception:
-		frappe.log_error(
-			title="Manual Tax Class Update Error",
-			message=frappe.get_traceback(),
-		)
-		return {
-			"status": "error",
-			"message": frappe._("Unexpected error while updating tax class on Portal"),
-		}
-
-
 def get_uom_meta_data(item_code: str, item_data: dict | None = None, doc=None) -> list[dict]:
 	"""Item için UOM meta_data bilgilerini döndürür"""
 	uom_meta = []
@@ -510,12 +368,7 @@ def collect_customer_b2bking_groups_for_item(item_code: str) -> dict:
 	return {"meta_data": merged}
 
 
-def sync_item_to_woocommerce(
-	doctype: str,
-	docname: str,
-	skip_price_update: bool = False,
-	only_tax_update: bool = False,
-):
+def sync_item_to_woocommerce(doctype: str, docname: str, skip_price_update: bool = False):
 	"""Item veya Item Price'ı WordPress'e senkronize eder (queue'da çalışır)"""
 	try:
 		doc = frappe.get_doc(doctype, docname)
@@ -600,41 +453,6 @@ def sync_item_to_woocommerce(
 			print(f"DEBUG: Error getting category_id from Item Group: {e}")
 			category_id = None
 
-		# Eğer sadece tax_class güncellemesi isteniyorsa, minimal payload ile gönder
-		if only_tax_update:
-			item_code = payload.get("item_code") or doc.name
-			tax_class_value = get_tax_category_from_item(
-				item_code, item_data=payload, doc=doc
-			)
-			if not tax_class_value:
-				print(
-					f"DEBUG: Item {item_code} - only_tax_update aktif ama tax_class hesaplanamadı, işlem atlandı"
-				)
-				return
-
-			# Mevcut WooCommerce ID yoksa tax_class güncellemesi yapma
-			existing_wc_id = frappe.db.get_value(
-				"Item", {"name": item_code}, "custom_woocommerce_id"
-			)
-			if not existing_wc_id:
-				print(
-					f"DEBUG: Item {item_code} - only_tax_update için Portal ID yok, işlem atlandı"
-				)
-				return
-
-			wc_tax_payload = {"tax_class": tax_class_value}
-			print(
-				f"DEBUG: Item {item_code} - only_tax_update, minimal payload gönderiliyor: {wc_tax_payload}"
-			)
-			send_to_woocommerce(
-				wc_tax_payload,
-				consumer_key,
-				consumer_secret,
-				item_code,
-				existing_wc_id,
-			)
-			return
-
 		# Fiyat güncellemesi atlanacaksa, B2B fiyat meta_data'larını toplama
 		dynamic_meta = []
 		standard_price = None
@@ -682,43 +500,8 @@ def sync_item_to_woocommerce(
 			skip_price_update=skip_price_update,
 		)
 
-		item_code = payload.get("item_code")
-
 		# WooCommerce'e gönder ve item_code ile existing_wc_id'yi geç
-		send_to_woocommerce(wc_payload, consumer_key, consumer_secret, item_code, existing_wc_id)
-
-		# Geniş payload sonrası, tax_class bazı Woo mantıkları tarafından sıfırlanabiliyor.
-		# Bu nedenle aynı request içinde minimal bir tax_class güncellemesi daha yapıyoruz.
-		try:
-			tax_class_value = get_tax_category_from_item(
-				item_code, item_data=payload, doc=doc
-			)
-			if tax_class_value:
-				# İlk çağrı yeni ürün oluşturduysa, ID şimdi DB'de mevcut olacak.
-				forced_wc_id = frappe.db.get_value(
-					"Item", {"name": item_code}, "custom_woocommerce_id"
-				) or existing_wc_id
-
-				if forced_wc_id:
-					wc_tax_payload = {"tax_class": tax_class_value}
-					print(
-						f"DEBUG: Item {item_code} - full sync sonrası tax_class force update: {wc_tax_payload}, wc_id={forced_wc_id}"
-					)
-					send_to_woocommerce(
-						wc_tax_payload,
-						consumer_key,
-						consumer_secret,
-						item_code,
-						forced_wc_id,
-					)
-				else:
-					print(
-						f"DEBUG: Item {item_code} - full sync sonrası force tax_class update için Portal ID bulunamadı"
-					)
-		except Exception as e:
-			print(
-				f"DEBUG: Item {item_code} - full sync sonrası force tax_class update sırasında hata: {e}"
-			)
+		send_to_woocommerce(wc_payload, consumer_key, consumer_secret, payload.get("item_code"), existing_wc_id)
 
 		frappe.msgprint(frappe._("Item successfully synchronized to Portal"))
 		
@@ -746,7 +529,6 @@ def handle_item_saved(doc, method=None):
 
 	# Item güncellemesinde fiyat değişikliği kontrolü
 	skip_price_update = False
-	only_tax_update = False
 	if doc.doctype == "Item":
 		# Önceki değerleri kontrol et
 		doc_before_save = getattr(doc, "_doc_before_save", None)
@@ -754,7 +536,6 @@ def handle_item_saved(doc, method=None):
 			# Fiyat ile ilgili alanların değişip değişmediğini kontrol et
 			price_related_fields = ["standard_rate"]
 			price_changed = False
-			tax_changed = False
 			
 			for field in price_related_fields:
 				old_value = getattr(doc_before_save, field, None)
@@ -768,49 +549,15 @@ def handle_item_saved(doc, method=None):
 				skip_price_update = True
 				print(f"DEBUG: Item {doc.name} - Fiyat değişmedi, sadece fiyat dışı alanlar güncellenecek")
 
-			# custom_portal_tax_rate alanı değişti mi kontrol et
-			old_tax = getattr(doc_before_save, "custom_portal_tax_rate", None)
-			new_tax = getattr(doc, "custom_portal_tax_rate", None)
-			if old_tax != new_tax:
-				tax_changed = True
-				print(
-					f"DEBUG: Item {doc.name} - custom_portal_tax_rate değişti "
-					f"({old_tax} -> {new_tax}), only_tax_update=True"
-				)
-
-			# Eğer sadece tax değiştiyse (fiyat değişmemişse), minimal tax update kullan
-			if tax_changed and not price_changed:
-				only_tax_update = True
-
-	# Queue'ya ATM almadan önce tax debug'larını yazdır (senkron görebilmek için)
-	if doc.doctype == "Item":
-		try:
-			raw_tax_rate = getattr(doc, "custom_portal_tax_rate", None)
-			print(
-				f"DEBUG: Item {doc.name} - custom_portal_tax_rate (doc): {raw_tax_rate}"
-			)
-			# Fonksiyonun ne ürettiğini queue'ya gitmeden logla
-			tax_class_preview = get_tax_category_from_item(
-				doc.name, item_data=doc.as_dict(), doc=doc
-			)
-			print(
-				f"DEBUG: Item {doc.name} - tax_class (preview, enqueue öncesi): {tax_class_preview}"
-			)
-		except Exception as e:
-			print(
-				f"DEBUG: Item {doc.name} - tax_class preview sırasında hata: {e}"
-			)
-
 	# Queue'ya ekle
 	frappe.enqueue(
 		"culinary_portal.custom_hooks.create_item.sync_item_to_woocommerce",
 		doctype=doc.doctype,
 		docname=doc.name,
 		skip_price_update=skip_price_update,
-		only_tax_update=only_tax_update,
 		queue="default",
 		timeout=300,  # 5 dakika timeout
-		now=True,  # Arka planda çalışsın
+		now=False,  # Arka planda çalışsın
 	)
 	print(f"DEBUG: {doc.doctype} {doc.name} queue'ya eklendi (skip_price_update={skip_price_update})")
 
@@ -946,9 +693,6 @@ def map_item_to_woocommerce(
 
 		print(f"\n\n\n DEBUG:1 Final categories", categories)
 
-		# Tax category'yi al ve tax_class olarak ekle
-		tax_category = get_tax_category_from_item(item_code, item_data=item_data, doc=doc)
-		
 		wc_data = {
 			"name": item_data.get("item_name", ""),
 			"slug": item_data.get("item_code", ""),
@@ -963,12 +707,7 @@ def map_item_to_woocommerce(
 			"images": images,
 			"meta_data": meta_data or [],
 		}
-		
-		# Tax class'ı ekle (varsa)
-		if tax_category:
-			wc_data["tax_class"] = tax_category
-			print(f"DEBUG: tax_class eklendi: {tax_category}")
-		
+
 		# regular_price'ı sadece fiyat güncellemesi yapılıyorsa ekle
 		if not skip_price_update and regular_price_value and regular_price_value != "0.0":
 			wc_data["regular_price"] = regular_price_value
