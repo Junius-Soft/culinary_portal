@@ -557,7 +557,7 @@ def handle_item_saved(doc, method=None):
 		skip_price_update=skip_price_update,
 		queue="default",
 		timeout=300,  # 5 dakika timeout
-		now=True,  # Arka planda çalışsın
+		now=False,  # Arka planda çalışsın
 	)
 	print(f"DEBUG: {doc.doctype} {doc.name} queue'ya eklendi (skip_price_update={skip_price_update})")
 
@@ -884,7 +884,7 @@ def send_to_woocommerce(payload, consumer_key, consumer_secret, item_code, exist
 						wc_product_id=wc_product_id,
 						queue="default",
 						timeout=120,
-						now=True,
+						now=False,
 					)
 					print(f"DEBUG: tax_class enqueue edildi - WC ID: {wc_product_id}, Item: {item_code}")
 				except Exception:
