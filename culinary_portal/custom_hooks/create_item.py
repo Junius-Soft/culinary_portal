@@ -231,6 +231,62 @@ def collect_customer_b2bking_group_for_price_list(item_code: str, price_list_nam
 	return {"meta_data": meta_data}
 
 
+def get_tax_category_from_item(item_code: str, item_data: dict | None = None, doc=None) -> str | None:
+	"""Item'ın custom_portal_tax_rate alanından değeri alıp tax_class'a dönüştürür.
+	
+	Değer eşleştirmeleri:
+	- 7 → "standard"
+	- 19 → "reduced rate"
+	- 0 → "zero rate"
+	"""
+	if not item_code:
+		return None
+	
+	tax_rate = None
+	
+	# Önce doc'tan dene (en pratik ve güvenli yöntem)
+	if doc and hasattr(doc, "custom_portal_tax_rate"):
+		tax_rate = doc.custom_portal_tax_rate
+	
+	# Doc'ta yoksa item_data'dan dene
+	if tax_rate is None and item_data:
+		tax_rate = item_data.get("custom_portal_tax_rate")
+	
+	# Hala yoksa veritabanından çek (fallback)
+	if tax_rate is None:
+		try:
+			tax_rate = frappe.db.get_value("Item", item_code, "custom_portal_tax_rate")
+		except Exception as e:
+			print(f"DEBUG: custom_portal_tax_rate DB sorgusu hatası: {e}")
+			return None
+	
+	# Değere göre tax_class belirle
+	if tax_rate is None:
+		return None
+	
+	# Float veya int olabilir, karşılaştırma için float'a çevir
+	try:
+		tax_rate_float = float(tax_rate)
+	except (ValueError, TypeError):
+		print(f"DEBUG: custom_portal_tax_rate geçersiz değer: {tax_rate}")
+		return None
+	
+	# Tax class eşleştirmesi
+	if tax_rate_float == 7:
+		tax_class = "standard"
+	elif tax_rate_float == 19:
+		tax_class = "reduced rate"
+	elif tax_rate_float == 0:
+		tax_class = "zero rate"
+	else:
+		# Tanımlı olmayan değerler için None döndür
+		print(f"DEBUG: custom_portal_tax_rate tanımlı olmayan değer: {tax_rate_float}")
+		return None
+	
+	print(f"DEBUG: tax_class belirlendi: {tax_class} (tax_rate: {tax_rate_float})")
+	return tax_class
+
+
 def get_uom_meta_data(item_code: str, item_data: dict | None = None, doc=None) -> list[dict]:
 	"""Item için UOM meta_data bilgilerini döndürür"""
 	uom_meta = []
@@ -692,6 +748,9 @@ def map_item_to_woocommerce(
 
 		print(f"\n\n\n DEBUG:1 Final categories", categories)
 
+		# Tax category'yi al ve tax_class olarak ekle
+		tax_category = get_tax_category_from_item(item_code, item_data=item_data, doc=doc)
+		
 		wc_data = {
 			"name": item_data.get("item_name", ""),
 			"slug": item_data.get("item_code", ""),
@@ -706,6 +765,11 @@ def map_item_to_woocommerce(
 			"images": images,
 			"meta_data": meta_data or [],
 		}
+		
+		# Tax class'ı ekle (varsa)
+		if tax_category:
+			wc_data["tax_class"] = tax_category
+			print(f"DEBUG: tax_class eklendi: {tax_category}")
 		
 		# regular_price'ı sadece fiyat güncellemesi yapılıyorsa ekle
 		if not skip_price_update and regular_price_value and regular_price_value != "0.0":
