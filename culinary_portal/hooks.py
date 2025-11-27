@@ -204,7 +204,7 @@ doc_events = {
 	},
 	"Agreement": {
 		"validate": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_before_submit",
-		# "on_submit": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
+		"on_submit": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
 		"on_cancel": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_cancelled",
 	},
 }

@@ -9,6 +9,17 @@ from culinary_portal.custom_hooks.create_item import (
 )
 
 
+def handle_agreement_before_submit(doc, method=None):
+	"""
+	Agreement submit edilmeden önce custom_customer_note alanının doldurulmasını kontrol eder.
+	Eğer alan boşsa, JavaScript tarafında modal açılması için flag set edilir.
+	"""
+	# JavaScript tarafında modal açılacak, burada sadece kontrol yapıyoruz
+	if not doc.custom_customer_note:
+		# JavaScript tarafında modal açılacak, burada sadece flag set ediyoruz
+		doc.flags.show_customer_note_modal = True
+
+
 def handle_agreement_saved(doc, method=None):
     """
     Agreement save olduğunda alt tablodaki (agreement_items) 
