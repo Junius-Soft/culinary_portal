@@ -254,26 +254,52 @@ def get_tax_category_from_item(item_code: str, item_data: dict | None = None, do
 		print(f"DEBUG: custom_portal_tax_rate None - item_code: {item_code}")
 		return None
 	
-	# String olarak kontrol et (% 7, % 19, % 0 formatında)
-	tax_rate_str = str(tax_rate).strip()
-	print(f"DEBUG: custom_portal_tax_rate değeri: '{tax_rate_str}' (tip: {type(tax_rate).__name__}) - item_code: {item_code}")
-	
-	# Tax class eşleştirmesi - string kontrolü
-	if tax_rate_str == "% 7" or tax_rate_str == "7" or tax_rate_str == "7.0":
+	# String normalize et (%, boşluk, virgül vs.)
+	tax_rate_str_raw = str(tax_rate)
+	tax_rate_str = tax_rate_str_raw.strip()
+	print(
+		f"DEBUG: custom_portal_tax_rate ham değer: '{tax_rate_str_raw}' -> normalize öncesi: '{tax_rate_str}' "
+		f"(tip: {type(tax_rate).__name__}) - item_code: {item_code}"
+	)
+
+	# '% 7,00' gibi formatları sayıya çevirmek için temizle
+	normalized = (
+		tax_rate_str.replace("%", "")
+		.replace(" ", "")
+		.replace(",", ".")
+	)
+
+	try:
+		tax_rate_val = float(normalized)
+	except (ValueError, TypeError):
+		print(
+			f"DEBUG: custom_portal_tax_rate sayıya çevrilemedi: '{tax_rate_str}' -> '{normalized}' - item_code: {item_code}"
+		)
+		return None
+
+	print(
+		f"DEBUG: custom_portal_tax_rate normalize edilmiş: {tax_rate_val} - item_code: {item_code}"
+	)
+
+	# Tax class eşleştirmesi - sayısal kontrol
+	if abs(tax_rate_val - 7.0) < 0.001:
 		# WooCommerce'de standard tax class için slug boş string'tir
 		tax_class = ""
-		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: '{tax_rate_str}')")
-	elif tax_rate_str == "% 19" or tax_rate_str == "19" or tax_rate_str == "19.0":
+		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: {tax_rate_val})")
+	elif abs(tax_rate_val - 19.0) < 0.001:
 		# WooCommerce varsayılan slug: reduced-rate
 		tax_class = "reduced-rate"
-		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: '{tax_rate_str}')")
-	elif tax_rate_str == "% 0" or tax_rate_str == "0" or tax_rate_str == "0.0":
+		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: {tax_rate_val})")
+	elif abs(tax_rate_val - 0.0) < 0.001:
 		# WooCommerce varsayılan slug: zero-rate
 		tax_class = "zero-rate"
-		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: '{tax_rate_str}')")
+		print(f"DEBUG: tax_class belirlendi: '{tax_class}' (tax_rate: {tax_rate_val})")
 	else:
 		# Tanımlı olmayan değerler için None döndür
-		print(f"DEBUG: custom_portal_tax_rate tanımlı olmayan değer: '{tax_rate_str}' - item_code: {item_code}")
+		print(
+			f"DEBUG: custom_portal_tax_rate tanımlı olmayan değer: {tax_rate_val} "
+			f"(ham: '{tax_rate_str}') - item_code: {item_code}"
+		)
 		return None
 	
 	return tax_class
