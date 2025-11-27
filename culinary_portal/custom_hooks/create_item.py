@@ -913,7 +913,7 @@ def handle_zero_rate_tax_class(doc, method=None):
 			custom_woocommerce_id=custom_wc_id,
 			queue="default",
 			timeout=120,
-			now=False,
+			now=True,
 		)
 		print(f"DEBUG: Item {doc.name} için zero_rate tax_class kuyruğa alındı (WC ID: {custom_wc_id})")
 	except Exception:
@@ -936,7 +936,7 @@ def set_zero_rate_tax_class_for_item(custom_woocommerce_id: int | str):
 		product_id = str(custom_woocommerce_id)
 
 		url = f"{get_wo_url()}/wp-json/wc/v3/products/{product_id}"
-		payload = {"tax_class": "zero_rate"}
+		payload = {"tax_class": "zero-rate"}
 
 		response = requests.put(
 			url,
