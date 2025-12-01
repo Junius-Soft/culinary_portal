@@ -257,12 +257,12 @@ def update_wordpress_user_from_customer(customer_doc):
 			"region_4_marken": getattr(customer_doc, "custom_region_4", "") or "",
 			"region_5_marken": getattr(customer_doc, "custom_region_5", "") or "",
 			# Marken vendor alanları - ERPNext -> WordPress
-			"marken_1_vendor": getattr(customer_doc, "custom_brand_vendor_1", "") or "",
-			"marken_2_vendor": getattr(customer_doc, "custom_brand_vendor_2", "") or "",
-			"marken_3_vendor": getattr(customer_doc, "custom_brand_vendor_3", "") or "",
-			"marken_4_vendor": getattr(customer_doc, "custom_brand_vendor_4", "") or "",
-			"marken_5_vendor": getattr(customer_doc, "custom_brand_vendor_5", "") or "",
-			"marken_6_vendor": getattr(customer_doc, "custom_brand_vendor_6", "") or "",
+			"marken-vendor_1": getattr(customer_doc, "custom_brand_vendor_1", "") or "",
+			"marken-vendor_2": getattr(customer_doc, "custom_brand_vendor_2", "") or "",
+			"marken-vendor_3": getattr(customer_doc, "custom_brand_vendor_3", "") or "",
+			"marken-vendor_4": getattr(customer_doc, "custom_brand_vendor_4", "") or "",
+			"marken-vendor_5": getattr(customer_doc, "custom_brand_vendor_5", "") or "",
+			"marken-vendor_6": getattr(customer_doc, "custom_brand_vendor_6", "") or "",
 		}
 		
 		# Adres bilgilerini Address doctype'ından al
@@ -392,12 +392,12 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	customer_doc.custom_region_5 = extract_meta_value(meta_data, "region_5_marken")
 	
 	# Brand Vendor alanları - WordPress -> ERPNext
-	customer_doc.custom_brand_vendor_1 = extract_meta_value(meta_data, "marken_1_vendor")
-	customer_doc.custom_brand_vendor_2 = extract_meta_value(meta_data, "marken_2_vendor")
-	customer_doc.custom_brand_vendor_3 = extract_meta_value(meta_data, "marken_3_vendor")
-	customer_doc.custom_brand_vendor_4 = extract_meta_value(meta_data, "marken_4_vendor")
-	customer_doc.custom_brand_vendor_5 = extract_meta_value(meta_data, "marken_5_vendor")
-	customer_doc.custom_brand_vendor_6 = extract_meta_value(meta_data, "marken_6_vendor")
+	customer_doc.custom_brand_vendor_1 = extract_meta_value(meta_data, "marken-vendor_1")
+	customer_doc.custom_brand_vendor_2 = extract_meta_value(meta_data, "marken-vendor_2")
+	customer_doc.custom_brand_vendor_3 = extract_meta_value(meta_data, "marken-vendor_3")
+	customer_doc.custom_brand_vendor_4 = extract_meta_value(meta_data, "marken-vendor_4")
+	customer_doc.custom_brand_vendor_5 = extract_meta_value(meta_data, "marken-vendor_5")
+	customer_doc.custom_brand_vendor_6 = extract_meta_value(meta_data, "marken-vendor_6")
 	
 	return customer_doc
 
