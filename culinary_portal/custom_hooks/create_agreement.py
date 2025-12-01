@@ -339,8 +339,8 @@ def _create_agreement(customer_name, supplier_name, vendor_index=None):
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-8 {len(agreement_doc.agreement_items)} ürün Agreement Items'a eklendi")
 		
-		# Services değerlerini ekle (vendor_index varsa)
-		if vendor_index and vendor_index in [1, 2, 3]:
+		# Services değerlerini ekle (vendor_index varsa, 1-6)
+		if vendor_index and vendor_index in [1, 2, 3, 4, 5, 6]:
 			# Customer'dan ilgili services değerini al
 			customer_doc = frappe.get_doc("Customer", customer_name)
 			services_field = f"custom_brands_{vendor_index}"
@@ -399,20 +399,27 @@ def create_agreements_for_customer_after_insert(doc, method=None):
 		# Agreement oluşturma WordPress sync'ten bağımsız çalışmalı
 		# skip_wordpress_sync sadece WordPress'e geri göndermeyi atlar
 		
-		# Yeni vendor değerleri
+		# Yeni vendor değerleri (1-6)
 		new_vendors = {
 			1: getattr(doc, "custom_brand_vendor_1", "") or "",
 			2: getattr(doc, "custom_brand_vendor_2", "") or "",
 			3: getattr(doc, "custom_brand_vendor_3", "") or "",
+			4: getattr(doc, "custom_brand_vendor_4", "") or "",
+			5: getattr(doc, "custom_brand_vendor_5", "") or "",
+			6: getattr(doc, "custom_brand_vendor_6", "") or "",
 		}
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-AI-3 Yeni vendor değerleri:")
 		print(f"  custom_brand_vendor_1: '{new_vendors[1]}'")
 		print(f"  custom_brand_vendor_2: '{new_vendors[2]}'")
 		print(f"  custom_brand_vendor_3: '{new_vendors[3]}'")
+		print(f"  custom_brand_vendor_4: '{new_vendors[4]}'")
+		print(f"  custom_brand_vendor_5: '{new_vendors[5]}'")
+		print(f"  custom_brand_vendor_6: '{new_vendors[6]}'")
 		
-		# Boş olmayan vendor'lar için agreement oluştur
-		for idx, supplier in enumerate([new_vendors[1], new_vendors[2], new_vendors[3]], start=1):
+		# Boş olmayan vendor'lar için agreement oluştur (1-6)
+		for idx in [1, 2, 3, 4, 5, 6]:
+			supplier = new_vendors[idx]
 			if supplier:
 				print(f"\n\n\n DEBUG-AGREEMENT-AI-4 Vendor {idx} bulundu: {supplier}")
 				if frappe.db.exists("Supplier", supplier):
@@ -444,22 +451,26 @@ def create_agreements_for_customer_on_update(doc, method=None):
 	try:
 		# Agreement oluşturma WordPress sync'ten bağımsız çalışmalı
 		
-		# Yeni değerler
+		# Yeni değerler (1-6)
 		new_vendors = {
 			1: getattr(doc, "custom_brand_vendor_1", "") or "",
 			2: getattr(doc, "custom_brand_vendor_2", "") or "",
 			3: getattr(doc, "custom_brand_vendor_3", "") or "",
+			4: getattr(doc, "custom_brand_vendor_4", "") or "",
+			5: getattr(doc, "custom_brand_vendor_5", "") or "",
+			6: getattr(doc, "custom_brand_vendor_6", "") or "",
 		}
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-OU-2 Yeni vendor değerleri:")
 		print(f"  custom_brand_vendor_1: '{new_vendors[1]}'")
 		print(f"  custom_brand_vendor_2: '{new_vendors[2]}'")
 		print(f"  custom_brand_vendor_3: '{new_vendors[3]}'")
+		print(f"  custom_brand_vendor_4: '{new_vendors[4]}'")
+		print(f"  custom_brand_vendor_5: '{new_vendors[5]}'")
+		print(f"  custom_brand_vendor_6: '{new_vendors[6]}'")
 		
-		# DB'den eski değerleri al (on_update'te DB zaten güncellenmiş)
-		# Bu yüzden sadece yeni vendor'lar için agreement oluştur
-		# Eğer vendor değeri varsa ve agreement yoksa oluştur
-		for idx in [1, 2, 3]:
+		# Eğer vendor değeri varsa ve agreement yoksa oluştur (1-6)
+		for idx in [1, 2, 3, 4, 5, 6]:
 			supplier = new_vendors[idx]
 			
 			if supplier and frappe.db.exists("Supplier", supplier):
