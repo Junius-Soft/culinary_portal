@@ -247,6 +247,9 @@ def update_wordpress_user_from_customer(customer_doc):
 			"marken_1_services": getattr(customer_doc, "custom_brands_1", "") or "",
 			"marken_2_services": getattr(customer_doc, "custom_brands_2", "") or "",
 			"marken_3_services": getattr(customer_doc, "custom_brands_3", "") or "",
+			"marken_4_services": getattr(customer_doc, "custom_brands_4", "") or "",
+			"marken_5_services": getattr(customer_doc, "custom_brands_5", "") or "",
+			"marken_6_services": getattr(customer_doc, "custom_brands_6", "") or "",
 			# Region marken alanları - ERPNext -> WordPress
 			"region_1_marken": getattr(customer_doc, "custom_region_1", "") or "",
 			"region_2_marken": getattr(customer_doc, "custom_region_2", "") or "",
@@ -257,6 +260,9 @@ def update_wordpress_user_from_customer(customer_doc):
 			"marken-vendor_1": getattr(customer_doc, "custom_brand_vendor_1", "") or "",
 			"marken-vendor_2": getattr(customer_doc, "custom_brand_vendor_2", "") or "",
 			"marken-vendor_3": getattr(customer_doc, "custom_brand_vendor_3", "") or "",
+			"marken-vendor_4": getattr(customer_doc, "custom_brand_vendor_4", "") or "",
+			"marken-vendor_5": getattr(customer_doc, "custom_brand_vendor_5", "") or "",
+			"marken-vendor_6": getattr(customer_doc, "custom_brand_vendor_6", "") or "",
 		}
 		
 		# Adres bilgilerini Address doctype'ından al
@@ -373,6 +379,10 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	customer_doc.custom_brands_1 = extract_meta_value(meta_data, "marken_1_services")
 	customer_doc.custom_brands_2 = extract_meta_value(meta_data, "marken_2_services")
 	customer_doc.custom_brands_3 = extract_meta_value(meta_data, "marken_3_services")
+	customer_doc.custom_brands_4 = extract_meta_value(meta_data, "marken_4_services")
+	customer_doc.custom_brands_5 = extract_meta_value(meta_data, "marken_5_services")
+	customer_doc.custom_brands_6 = extract_meta_value(meta_data, "marken_6_services")
+
 	
 	# Region alanları - WordPress -> ERPNext
 	customer_doc.custom_region_1 = extract_meta_value(meta_data, "region_1_marken")
@@ -385,6 +395,9 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	customer_doc.custom_brand_vendor_1 = extract_meta_value(meta_data, "marken-vendor_1")
 	customer_doc.custom_brand_vendor_2 = extract_meta_value(meta_data, "marken-vendor_2")
 	customer_doc.custom_brand_vendor_3 = extract_meta_value(meta_data, "marken-vendor_3")
+	customer_doc.custom_brand_vendor_4 = extract_meta_value(meta_data, "marken-vendor_4")
+	customer_doc.custom_brand_vendor_5 = extract_meta_value(meta_data, "marken-vendor_5")
+	customer_doc.custom_brand_vendor_6 = extract_meta_value(meta_data, "marken-vendor_6")
 	
 	return customer_doc
 
