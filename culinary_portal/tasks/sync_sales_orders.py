@@ -722,8 +722,6 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 		if not wc_server.warehouse:
 			frappe.throw(_("Please set Warehouse in WooCommerce Server"))
 
-		tax_template = None
-
 		for item in json.loads(wc_order.line_items):
 			woocomm_item_id = item.get("variation_id") or item.get("product_id")
 
@@ -763,20 +761,13 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 				# found_item = frappe.get_doc("Item", item_codes[0].parent) if item_codes else None
 				found_item = frappe.get_doc("Item", item_codes[0]["name"])
 
-			# If we are applying a Sales Taxes and Charges Template (as opposed to Actual Tax),
-			# then we need to determine if the item price should include tax or not.
-			# Only fetch the tax template if tax lines sync is enabled and we're not using
-			# the actual tax type.
+			# If we are applying a Sales Taxes and Charges Template (as opposed to Actual Tax), then we need to
+			# determine if the item price should include tax or not
 			if wc_server.enable_tax_lines_sync and not wc_server.use_actual_tax_type:
 				tax_template = frappe.get_cached_doc(
 					"Sales Taxes and Charges Template",
 					wc_server.sales_taxes_and_charges_template,
 				)
-
-			included_in_print_rate = (
-				bool(tax_template)
-				and getattr(tax_template.taxes[0], "included_in_print_rate", 0)
-			)
 
 			new_sales_order_line = {
 				"item_code": found_item.name,
@@ -786,7 +777,7 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 				"qty": item.get("quantity"),
 				"rate": item.get("price")
 				if wc_server.use_actual_tax_type
-				or not included_in_print_rate
+				or not tax_template.taxes[0].included_in_print_rate
 				else get_tax_inc_price_for_woocommerce_line_item(item),
 				"warehouse": wc_server.warehouse,
 				"discount_percentage": 100 if item.get("price") == 0 else 0,
