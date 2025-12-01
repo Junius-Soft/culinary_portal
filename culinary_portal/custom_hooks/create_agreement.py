@@ -29,12 +29,18 @@ def create_agreements_for_customer(doc, method=None):
 			1: getattr(doc, "custom_brand_vendor_1", "") or "",
 			2: getattr(doc, "custom_brand_vendor_2", "") or "",
 			3: getattr(doc, "custom_brand_vendor_3", "") or "",
+			4: getattr(doc, "custom_brand_vendor_4", "") or "",
+			5: getattr(doc, "custom_brand_vendor_5", "") or "",
+			6: getattr(doc, "custom_brand_vendor_6", "") or "",
 		}
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-4 Yeni vendor değerleri:")
 		print(f"  custom_brand_vendor_1: '{new_vendors[1]}'")
 		print(f"  custom_brand_vendor_2: '{new_vendors[2]}'")
 		print(f"  custom_brand_vendor_3: '{new_vendors[3]}'")
+		print(f"  custom_brand_vendor_4: '{new_vendors[4]}'")
+		print(f"  custom_brand_vendor_5: '{new_vendors[5]}'")
+		print(f"  custom_brand_vendor_6: '{new_vendors[6]}'")
 		
 		# Yeni customer kontrolü before_save'de yapılmaz, after_insert'te yapılacak
 		if doc.get("__islocal"):
@@ -49,13 +55,19 @@ def create_agreements_for_customer(doc, method=None):
 		has_vendor_changes = (
 			doc.has_value_changed("custom_brand_vendor_1") or
 			doc.has_value_changed("custom_brand_vendor_2") or
-			doc.has_value_changed("custom_brand_vendor_3")
+			doc.has_value_changed("custom_brand_vendor_3") or
+			doc.has_value_changed("custom_brand_vendor_4") or
+			doc.has_value_changed("custom_brand_vendor_5") or
+			doc.has_value_changed("custom_brand_vendor_6")
 		)
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-10 has_value_changed kontrolü:")
 		print(f"  custom_brand_vendor_1: {doc.has_value_changed('custom_brand_vendor_1')}")
 		print(f"  custom_brand_vendor_2: {doc.has_value_changed('custom_brand_vendor_2')}")
 		print(f"  custom_brand_vendor_3: {doc.has_value_changed('custom_brand_vendor_3')}")
+		print(f"  custom_brand_vendor_4: {doc.has_value_changed('custom_brand_vendor_4')}")
+		print(f"  custom_brand_vendor_5: {doc.has_value_changed('custom_brand_vendor_5')}")
+		print(f"  custom_brand_vendor_6: {doc.has_value_changed('custom_brand_vendor_6')}")
 		print(f"  Toplam değişiklik var mı: {has_vendor_changes}")
 		
 		if not has_vendor_changes:
@@ -70,7 +82,10 @@ def create_agreements_for_customer(doc, method=None):
 			[
 				"custom_brand_vendor_1",
 				"custom_brand_vendor_2",
-				"custom_brand_vendor_3"
+				"custom_brand_vendor_3",
+				"custom_brand_vendor_4",
+				"custom_brand_vendor_5",
+				"custom_brand_vendor_6"
 			],
 			as_dict=True
 		)
@@ -86,21 +101,30 @@ def create_agreements_for_customer(doc, method=None):
 				1: old_values.get("custom_brand_vendor_1", "") or "",
 				2: old_values.get("custom_brand_vendor_2", "") or "",
 				3: old_values.get("custom_brand_vendor_3", "") or "",
+				4: old_values.get("custom_brand_vendor_4", "") or "",
+				5: old_values.get("custom_brand_vendor_5", "") or "",
+				6: old_values.get("custom_brand_vendor_6", "") or "",
 			}
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-12 Eski vendor değerleri:")
 		print(f"  custom_brand_vendor_1: '{old_vendors[1]}'")
 		print(f"  custom_brand_vendor_2: '{old_vendors[2]}'")
 		print(f"  custom_brand_vendor_3: '{old_vendors[3]}'")
+		print(f"  custom_brand_vendor_4: '{old_vendors[4]}'")
+		print(f"  custom_brand_vendor_5: '{old_vendors[5]}'")
+		print(f"  custom_brand_vendor_6: '{old_vendors[6]}'")
 		
 		print(f"\n\n\n DEBUG-AGREEMENT-12 Eski vendor değerleri:")
 		print(f"  custom_brand_vendor_1: '{old_vendors[1]}'")
 		print(f"  custom_brand_vendor_2: '{old_vendors[2]}'")
 		print(f"  custom_brand_vendor_3: '{old_vendors[3]}'")
+		print(f"  custom_brand_vendor_4: '{old_vendors[4]}'")
+		print(f"  custom_brand_vendor_5: '{old_vendors[5]}'")
+		print(f"  custom_brand_vendor_6: '{old_vendors[6]}'")
 		
 		# Değişiklik var mı kontrol et
 		has_changes = False
-		for idx in [1, 2, 3]:
+		for idx in [1, 2, 3, 4, 5, 6]:
 			if new_vendors[idx] != old_vendors[idx]:
 				has_changes = True
 				print(f"\n\n\n DEBUG-AGREEMENT-13 Değişiklik bulundu! Vendor {idx}: '{old_vendors[idx]}' -> '{new_vendors[idx]}'")
@@ -112,7 +136,7 @@ def create_agreements_for_customer(doc, method=None):
 			return
 		
 		# Değişiklik varsa, yeni vendor'lar için agreement oluştur
-		for idx in [1, 2, 3]:
+		for idx in [1, 2, 3, 4, 5, 6]:
 			new_supplier = new_vendors[idx]
 			old_supplier = old_vendors[idx]
 			
