@@ -242,22 +242,32 @@ def update_wordpress_user_from_customer(customer_doc):
 			"ablaufdatum": getattr(customer_doc, "custom_expiry_date", "") or "",
 			"betriebsform": getattr(customer_doc, "custom_operating_form", "") or "",
 			"address_apartment": getattr(customer_doc, "address_apartment", "") or "",
-			# Dosya alanları (URL) - ERPNext -> WordPress (truncate edilmiş)
-			"gewerbeanmeldung_file": truncate_url_field(
-				getattr(customer_doc, "custom_business_registration_file", "") or "", max_length=500
-			),
-			"ausweis_file": truncate_url_field(
-				getattr(customer_doc, "custom_id_file", "") or "", max_length=500
-			),
-			"hr-auszug_file": truncate_url_field(
-				getattr(customer_doc, "custom_hr_extract_file", "") or "", max_length=500
-			),
-			"gesellschafterliste_file": truncate_url_field(
-				getattr(customer_doc, "custom_shareholder_list_file", "") or "", max_length=500
-			),
-			"register-auszug_file": truncate_url_field(
-				getattr(customer_doc, "custom_register_extract_file", "") or "", max_length=500
-			),
+		# Dosya alanları (URL) - ERPNext -> WordPress (truncate edilmiş)
+		"gewerbeanmeldung_file": truncate_url_field(
+			getattr(customer_doc, "custom_business_registration_file", "") or "", 
+			max_length=500, 
+			field_label="Business Registration File"
+		),
+		"ausweis_file": truncate_url_field(
+			getattr(customer_doc, "custom_id_file", "") or "", 
+			max_length=500, 
+			field_label="ID File"
+		),
+		"hr-auszug_file": truncate_url_field(
+			getattr(customer_doc, "custom_hr_extract_file", "") or "", 
+			max_length=500, 
+			field_label="HR Extract File"
+		),
+		"gesellschafterliste_file": truncate_url_field(
+			getattr(customer_doc, "custom_shareholder_list_file", "") or "", 
+			max_length=500, 
+			field_label="Shareholder List File"
+		),
+		"register-auszug_file": truncate_url_field(
+			getattr(customer_doc, "custom_register_extract_file", "") or "", 
+			max_length=500, 
+			field_label="Register Extract File"
+		),
 			# Marken services alanları - ERPNext -> WordPress
 			"marken_1_services": getattr(customer_doc, "custom_brands_1", "") or "",
 			"marken_2_services": getattr(customer_doc, "custom_brands_2", "") or "",
@@ -374,21 +384,31 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	customer_doc.custom_operating_form = extract_meta_value(meta_data, "betriebsform")
 	
 	# Dosya alanları (URL) - WordPress -> ERPNext
-	# URL'leri truncate et (max 140 karakter - Data field default length)
+	# URL'leri truncate et (max 500 karakter - Data field default length)
 	customer_doc.custom_business_registration_file = truncate_url_field(
-		extract_meta_value(meta_data, "gewerbeanmeldung_file"), max_length=500
+		extract_meta_value(meta_data, "gewerbeanmeldung_file"), 
+		max_length=500, 
+		field_label="Business Registration File"
 	)
 	customer_doc.custom_id_file = truncate_url_field(
-		extract_meta_value(meta_data, "ausweis_file"), max_length=500
+		extract_meta_value(meta_data, "ausweis_file"), 
+		max_length=500, 
+		field_label="ID File"
 	)
 	customer_doc.custom_hr_extract_file = truncate_url_field(
-		extract_meta_value(meta_data, "hr-auszug_file"), max_length=500
+		extract_meta_value(meta_data, "hr-auszug_file"), 
+		max_length=500, 
+		field_label="HR Extract File"
 	)
 	customer_doc.custom_shareholder_list_file = truncate_url_field(
-		extract_meta_value(meta_data, "gesellschafterliste_file"), max_length=500
+		extract_meta_value(meta_data, "gesellschafterliste_file"), 
+		max_length=500, 
+		field_label="Shareholder List File"
 	)
 	customer_doc.custom_register_extract_file = truncate_url_field(
-		extract_meta_value(meta_data, "register-auszug_file"), max_length=500
+		extract_meta_value(meta_data, "register-auszug_file"), 
+		max_length=500, 
+		field_label="Register Extract File"
 	)
 	
 	# Brands alanları - WordPress -> ERPNext
