@@ -222,6 +222,7 @@ def update_wordpress_user_from_customer(customer_doc):
 			"kontaktperson__email": getattr(customer_doc, "custom_contact_person_email", "") or "",
 			"kontaktperson__phone": getattr(customer_doc, "custom_contact_person_phone", "") or "",
 			"iban": getattr(customer_doc, "custom_iban", "") or "",
+			"konto_inhaberin": getattr(customer_doc, "custom_account_holder", "") or "",
 			"bic": getattr(customer_doc, "custom_bic", "") or "",
 			"ausstellungsdatum": getattr(customer_doc, "custom_date_of_issue", "") or "",
 			"ablaufdatum": getattr(customer_doc, "custom_expiry_date", "") or "",
@@ -352,6 +353,7 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	customer_doc.custom_contact_person_email = extract_meta_value(meta_data, "kontaktperson__email")
 	customer_doc.custom_contact_person_phone = extract_meta_value(meta_data, "kontaktperson__phone")
 	customer_doc.custom_iban = extract_meta_value(meta_data, "iban")
+	customer_doc.custom_account_holder = extract_meta_value(meta_data, "konto_inhaberin")
 	customer_doc.custom_bic = extract_meta_value(meta_data, "bic")
 	customer_doc.custom_date_of_issue = extract_meta_value(meta_data, "ausstellungsdatum")
 	customer_doc.custom_expiry_date = extract_meta_value(meta_data, "ablaufdatum")
