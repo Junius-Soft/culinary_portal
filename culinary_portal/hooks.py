@@ -14,7 +14,7 @@ fixtures = [
     # {"dt": "Item Group"},
     # {"dt": "Item"},
     # {"dt": "Supplier"},
-    # {"dt": "Customer"},
+    # {"dt": "Company"},
 ]
 
 # required_apps = []
@@ -61,7 +61,7 @@ doctype_js = {
 	"Item": "public/js/item.js",
 	"Supplier": "public/js/supplier.js",
 	"Agreement": "public/js/agreement.js",
-	# "Customer": "public/js/customer.js"
+	"Customer": "public/js/customer.js"
 }
 
 doctype_list_js = {

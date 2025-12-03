@@ -1,8 +1,8 @@
 frappe.ui.form.on('Customer', {
     refresh: function(frm) {
-        // Add Customer Enable/Disable button
-        if (!frm.is_new()) {
-            frm.add_custom_button(__('Customer Enable/Disable'), function() {
+        // Add Customer Enable/Disable button only if custom_role is 'customerpendingapprove'
+        if (!frm.is_new() && frm.doc.custom_role === 'customerpendingapprove') {
+            frm.add_custom_button(__('Approve Customer'), function() {
                 toggle_customer_status(frm);
             }, __('Portal'));
         }
