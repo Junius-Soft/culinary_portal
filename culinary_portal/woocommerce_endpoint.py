@@ -335,27 +335,6 @@ def update_wordpress_user_from_customer(customer_doc):
 		return False
 
 
-def validate_and_fix_url_fields(customer_doc, max_length=140):
-	"""
-	Customer doc'taki tüm URL field'larını kontrol eder ve gerekirse truncate eder.
-	Bu fonksiyon, validation hatalarını önlemek için save'den önce çağrılır.
-	"""
-	url_fields = [
-		("custom_business_registration_file", "Business Registration File"),
-		("custom_id_file", "ID File"),
-		("custom_hr_extract_file", "HR Extract File"),
-		("custom_shareholder_list_file", "Shareholder List File"),
-		("custom_register_extract_file", "Register Extract File"),
-	]
-	
-	for field_name, field_label in url_fields:
-		value = getattr(customer_doc, field_name, None)
-		if value and len(str(value)) > max_length:
-			truncated_value = truncate_url_field(value, max_length=max_length, field_label=field_label)
-			setattr(customer_doc, field_name, truncated_value)
-			print(f"\n\n\n DEBUG-TRUNCATE: {field_label} truncated from {len(str(value))} to {len(truncated_value)} chars")
-
-
 def map_wordpress_data_to_customer(user_data, customer_doc):
 	"""
 	WordPress user data'sını Customer doc'a map eder
@@ -397,19 +376,19 @@ def map_wordpress_data_to_customer(user_data, customer_doc):
 	# Dosya alanları (URL) - WordPress -> ERPNext
 	# URL'leri truncate et (max 140 karakter - Data field default length)
 	customer_doc.custom_business_registration_file = truncate_url_field(
-		extract_meta_value(meta_data, "gewerbeanmeldung_file"), max_length=500, field_label="Business Registration File"
+		extract_meta_value(meta_data, "gewerbeanmeldung_file"), max_length=500
 	)
 	customer_doc.custom_id_file = truncate_url_field(
-		extract_meta_value(meta_data, "ausweis_file"), max_length=500, field_label="ID File"
+		extract_meta_value(meta_data, "ausweis_file"), max_length=500
 	)
 	customer_doc.custom_hr_extract_file = truncate_url_field(
-		extract_meta_value(meta_data, "hr-auszug_file"), max_length=500, field_label="HR Extract File"
+		extract_meta_value(meta_data, "hr-auszug_file"), max_length=500
 	)
 	customer_doc.custom_shareholder_list_file = truncate_url_field(
-		extract_meta_value(meta_data, "gesellschafterliste_file"), max_length=500, field_label="Shareholder List File"
+		extract_meta_value(meta_data, "gesellschafterliste_file"), max_length=500
 	)
 	customer_doc.custom_register_extract_file = truncate_url_field(
-		extract_meta_value(meta_data, "register-auszug_file"), max_length=500, field_label="Register Extract File"
+		extract_meta_value(meta_data, "register-auszug_file"), max_length=500
 	)
 	
 	# Brands alanları - WordPress -> ERPNext
@@ -495,9 +474,6 @@ def create_or_update_customer(user_data, is_new_customer=False):
 		# Tüm WordPress data'sını map et
 		customer_doc = map_wordpress_data_to_customer(user_data, customer_doc)
 		
-		# URL field'larını validation hatalarını önlemek için kontrol et
-		validate_and_fix_url_fields(customer_doc)
-		
 		# Önce Customer'ı kaydet (Address'ten önce)
 		customer_doc.save(ignore_permissions=True)
 		frappe.db.commit()
@@ -514,8 +490,6 @@ def create_or_update_customer(user_data, is_new_customer=False):
 			customer_doc.flags.ignore_validate = True
 			customer_doc.flags.ignore_mandatory = True
 			customer_doc.flags.ignore_links = True
-			# URL field'larını tekrar kontrol et (reload sonrası)
-			validate_and_fix_url_fields(customer_doc)
 			customer_doc.save(ignore_permissions=True)
 			frappe.db.commit()
 		
@@ -554,9 +528,6 @@ def create_or_update_customer(user_data, is_new_customer=False):
 		else:
 			print("\n\n\n DEBUG-COMMON-5 B2B hook çalışacak")
 		
-		# URL field'larını validation hatalarını önlemek için kontrol et
-		validate_and_fix_url_fields(customer_doc)
-		
 		customer_doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 		print(f"\n\n\n DEBUG-COMMON-6 Yeni Customer oluşturuldu: {customer_doc.name}")
@@ -572,8 +543,6 @@ def create_or_update_customer(user_data, is_new_customer=False):
 			customer_doc.flags.ignore_validate = True
 			customer_doc.flags.ignore_mandatory = True
 			customer_doc.flags.ignore_links = True
-			# URL field'larını tekrar kontrol et (reload sonrası)
-			validate_and_fix_url_fields(customer_doc)
 			customer_doc.save(ignore_permissions=True)
 			frappe.db.commit()
 		
@@ -673,15 +642,6 @@ def user_created(*args, **kwargs):
 				message=f"Error: {str(e)}\nData: {frappe.request.data}"
 			)
 			return Response(response=_("Invalid JSON"), status=HTTPStatus.BAD_REQUEST)
-		except frappe.CharacterLengthExceededError as e:
-			# URL field uzunluk hatası - detaylı log
-			print(f"\n\n\n DEBUG-USER-ERROR CharacterLengthExceededError: {str(e)}")
-			frappe.log_error(
-				title="User Created Webhook - URL Too Long",
-				message=f"CharacterLengthExceededError:\n{str(e)}\n\nUser Data:\n{json.dumps(user_data, indent=2, ensure_ascii=False)}\n\n{frappe.get_traceback()}"
-			)
-			# Bu hata ile bile webhook'u başarılı kabul et (sonsuz retry'ı önle)
-			return Response(status=HTTPStatus.OK)
 		except Exception as e:
 			print(f"\n\n\n DEBUG-USER-ERROR Exception: {str(e)}")
 			frappe.log_error(
@@ -742,15 +702,6 @@ def user_updated(*args, **kwargs):
 			print(f"\n\n\n DEBUG-UPDATE-FINAL Customer {action}: {customer_name}")
 			
 			print("\n\n\n ========== USER UPDATED WEBHOOK BİTTİ ==========")
-			return Response(status=HTTPStatus.OK)
-		except frappe.CharacterLengthExceededError as e:
-			# URL field uzunluk hatası - detaylı log
-			print(f"\n\n\n DEBUG-UPDATE-ERROR CharacterLengthExceededError: {str(e)}")
-			frappe.log_error(
-				title="User Update Webhook - URL Too Long",
-				message=f"CharacterLengthExceededError for user {user_id}:\n{str(e)}\n\nUser Data:\n{json.dumps(user_data, indent=2, ensure_ascii=False)}\n\n{frappe.get_traceback()}"
-			)
-			# Bu hata ile bile webhook'u başarılı kabul et (sonsuz retry'ı önle)
 			return Response(status=HTTPStatus.OK)
 		except Exception as e:
 			print(f"\n\n\n DEBUG-UPDATE-ERROR Exception: {str(e)}")
