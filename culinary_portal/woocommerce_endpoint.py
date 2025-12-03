@@ -244,19 +244,19 @@ def update_wordpress_user_from_customer(customer_doc):
 			"address_apartment": getattr(customer_doc, "address_apartment", "") or "",
 			# Dosya alanları (URL) - ERPNext -> WordPress (truncate edilmiş)
 			"gewerbeanmeldung_file": truncate_url_field(
-				getattr(customer_doc, "custom_business_registration_file", "") or "", max_length=140
+				getattr(customer_doc, "custom_business_registration_file", "") or "", max_length=500
 			),
 			"ausweis_file": truncate_url_field(
-				getattr(customer_doc, "custom_id_file", "") or "", max_length=140
+				getattr(customer_doc, "custom_id_file", "") or "", max_length=500
 			),
 			"hr-auszug_file": truncate_url_field(
-				getattr(customer_doc, "custom_hr_extract_file", "") or "", max_length=140
+				getattr(customer_doc, "custom_hr_extract_file", "") or "", max_length=500
 			),
 			"gesellschafterliste_file": truncate_url_field(
-				getattr(customer_doc, "custom_shareholder_list_file", "") or "", max_length=140
+				getattr(customer_doc, "custom_shareholder_list_file", "") or "", max_length=500
 			),
 			"register-auszug_file": truncate_url_field(
-				getattr(customer_doc, "custom_register_extract_file", "") or "", max_length=140
+				getattr(customer_doc, "custom_register_extract_file", "") or "", max_length=500
 			),
 			# Marken services alanları - ERPNext -> WordPress
 			"marken_1_services": getattr(customer_doc, "custom_brands_1", "") or "",
