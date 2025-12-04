@@ -436,11 +436,14 @@ def _find_wordpress_user_by_email(email):
     """Email ile WordPress user'ı bulur ve user data döner"""
     try:
         if not email:
+            print(f"\n\n\n DEBUG: _find_wordpress_user_by_email - Email boş!")
             return None
         
         # WordPress Users API - email ile ara
         url = f"{get_wo_url()}/wp-json/wp/v2/users"
         params = {"search": email}
+        
+        print(f"\n\n\n DEBUG: Search WP User - Email: {email}, URL: {url}")
         
         resp = requests.get(
             url,
@@ -450,22 +453,72 @@ def _find_wordpress_user_by_email(email):
             timeout=40,
         )
         
-        print(f"\n\n\n DEBUG: Search WP User by Email - Status: {resp.status_code}")
+        print(f"\n\n\n DEBUG: Search WP User - Status: {resp.status_code}")
+        print(f"\n\n\n DEBUG: Search WP User - Response: {resp.text[:500]}")
         
         if resp.status_code == 200:
             users = resp.json()
+            print(f"\n\n\n DEBUG: Found {len(users) if isinstance(users, list) else 0} users")
+            
             if isinstance(users, list) and len(users) > 0:
                 # İlk eşleşen user'ı döndür
                 for user in users:
-                    if user.get("email", "").lower() == email.lower():
-                        print(f"\n\n\n DEBUG: Found WP User - ID: {user.get('id')}, Email: {user.get('email')}")
+                    user_email = user.get("email", "")
+                    user_id = user.get("id")
+                    print(f"\n\n\n DEBUG: Checking user - ID: {user_id}, Email: {user_email}")
+                    
+                    if user_email.lower() == email.lower():
+                        print(f"\n\n\n DEBUG: ✅ MATCH! WP User ID: {user_id}, Email: {user_email}")
                         return user
         
+        print(f"\n\n\n DEBUG: ❌ WordPress user not found with email: {email}")
         return None
         
     except Exception as e:
-        print(f"\n\n\n DEBUG: Error searching WP user: {str(e)}")
+        print(f"\n\n\n DEBUG: ❌ Error searching WP user: {str(e)}")
+        frappe.log_error(
+            title="WordPress User Search Error",
+            message=f"Email: {email}\nError: {str(e)}\n{frappe.get_traceback()}"
+        )
         return None
+
+
+@frappe.whitelist()
+def debug_customer_info(customer_name):
+    """Customer bilgilerini debug için döndürür"""
+    try:
+        customer_doc = frappe.get_doc("Customer", customer_name)
+        
+        info = {
+            "customer_name": customer_doc.name,
+            "customer_display_name": customer_doc.customer_name,
+            "email_id": customer_doc.email_id,
+            "custom_portal_user_id": customer_doc.custom_portal_user_id,
+            "custom_role": customer_doc.custom_role,
+            "disabled": customer_doc.disabled,
+            "woocommerce_identifier": getattr(customer_doc, "woocommerce_identifier", None)
+        }
+        
+        print(f"\n\n\n DEBUG: Customer Info: {info}")
+        
+        # WordPress'te email ile ara
+        if customer_doc.email_id:
+            wp_user = _find_wordpress_user_by_email(customer_doc.email_id)
+            if wp_user:
+                info["wordpress_user_found"] = True
+                info["wordpress_user_id"] = wp_user.get("id")
+                info["wordpress_user_email"] = wp_user.get("email")
+            else:
+                info["wordpress_user_found"] = False
+        
+        return {"status": "success", "data": info}
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "traceback": frappe.get_traceback()
+        }
 
 
 @frappe.whitelist()
