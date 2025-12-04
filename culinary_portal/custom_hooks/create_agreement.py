@@ -17,7 +17,7 @@ def create_agreements_for_customer(doc, method=None):
 	Sadece custom_brand_vendor alanlarında değişiklik varsa yeni agreement oluşturur.
 	"""
 	print("\n\n\n ========== CREATE AGREEMENTS FOR CUSTOMER BAŞLADI ==========")
-	print(f"\n\n\n DEBUG-AGREEMENT-1 Customer: {doc.custom_restaurant_name}")
+	print(f"\n\n\n DEBUG-AGREEMENT-1 Customer: {doc.name}")
 	print(f"\n\n\n DEBUG-AGREEMENT-2 __islocal: {doc.get('__islocal')}")
 	
 	try:
@@ -78,7 +78,7 @@ def create_agreements_for_customer(doc, method=None):
 		# Değişiklik var, eski değerleri DB'den al (before_save'de DB henüz güncellenmemiş)
 		old_values = frappe.db.get_value(
 			"Customer",
-			doc.custom_restaurant_name,
+			doc.name,
 			[
 				"custom_brand_vendor_1",
 				"custom_brand_vendor_2",
@@ -154,7 +154,7 @@ def create_agreements_for_customer(doc, method=None):
 					existing_agreement = frappe.db.exists(
 						"Agreement",
 						{
-							"customer": doc.custom_restaurant_name,
+							"customer": doc.name,
 							"supplier": new_supplier,
 							"docstatus": ["!=", 2]  # Cancel edilmemiş
 						}
@@ -164,8 +164,8 @@ def create_agreements_for_customer(doc, method=None):
 					
 					# Agreement yoksa oluştur
 					if not existing_agreement:
-						print(f"\n\n\n DEBUG-AGREEMENT-19 Agreement oluşturuluyor: Customer={doc.custom_restaurant_name}, Supplier={new_supplier}, Vendor Index={idx}")
-						_create_agreement(doc.custom_restaurant_name, new_supplier, vendor_index=idx)
+						print(f"\n\n\n DEBUG-AGREEMENT-19 Agreement oluşturuluyor: Customer={doc.name}, Supplier={new_supplier}, Vendor Index={idx}")
+						_create_agreement(doc.name, new_supplier, vendor_index=idx)
 					else:
 						print(f"\n\n\n DEBUG-AGREEMENT-20 Agreement zaten mevcut, atlanıyor")
 				else:
@@ -372,11 +372,11 @@ def _create_agreement(customer_name, supplier_name, vendor_index=None):
 		
 		frappe.db.commit()
 		
-		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-10 Agreement başarıyla oluşturuldu: {agreement_doc.custom_restaurant_name}")
+		print(f"\n\n\n DEBUG-AGREEMENT-CREATE-10 Agreement başarıyla oluşturuldu: {agreement_doc.name}")
 		print(f"\n\n\n ========== _CREATE_AGREEMENT BİTTİ ==========")
 		
 		frappe.logger().info(
-			f"Agreement oluşturuldu: Customer={customer_name}, Supplier={supplier_name}, Name={agreement_doc.custom_restaurant_name}"
+			f"Agreement oluşturuldu: Customer={customer_name}, Supplier={supplier_name}, Name={agreement_doc.name}"
 		)
 		
 	except Exception as e:
@@ -393,7 +393,7 @@ def create_agreements_for_customer_after_insert(doc, method=None):
 	Yeni Customer insert edildikten sonra brand vendor alanlarına göre Agreement oluşturur.
 	"""
 	print("\n\n\n ========== CREATE AGREEMENTS FOR CUSTOMER AFTER INSERT BAŞLADI ==========")
-	print(f"\n\n\n DEBUG-AGREEMENT-AI-1 Customer: {doc.custom_restaurant_name}")
+	print(f"\n\n\n DEBUG-AGREEMENT-AI-1 Customer: {doc.name}")
 	
 	try:
 		# Agreement oluşturma WordPress sync'ten bağımsız çalışmalı
@@ -424,7 +424,7 @@ def create_agreements_for_customer_after_insert(doc, method=None):
 				print(f"\n\n\n DEBUG-AGREEMENT-AI-4 Vendor {idx} bulundu: {supplier}")
 				if frappe.db.exists("Supplier", supplier):
 					print(f"\n\n\n DEBUG-AGREEMENT-AI-5 Supplier mevcut, agreement oluşturuluyor (Vendor Index={idx})")
-					_create_agreement(doc.custom_restaurant_name, supplier, vendor_index=idx)
+					_create_agreement(doc.name, supplier, vendor_index=idx)
 				else:
 					print(f"\n\n\n DEBUG-AGREEMENT-AI-6 Supplier mevcut değil: {supplier}")
 		
@@ -446,7 +446,7 @@ def create_agreements_for_customer_on_update(doc, method=None):
 	bu yüzden on_update'te de kontrol ediyoruz.
 	"""
 	print("\n\n\n ========== CREATE AGREEMENTS FOR CUSTOMER ON UPDATE BAŞLADI ==========")
-	print(f"\n\n\n DEBUG-AGREEMENT-OU-1 Customer: {doc.custom_restaurant_name}")
+	print(f"\n\n\n DEBUG-AGREEMENT-OU-1 Customer: {doc.name}")
 	
 	try:
 		# Agreement oluşturma WordPress sync'ten bağımsız çalışmalı
@@ -478,7 +478,7 @@ def create_agreements_for_customer_on_update(doc, method=None):
 				existing_agreement = frappe.db.exists(
 					"Agreement",
 					{
-						"customer": doc.custom_restaurant_name,
+						"customer": doc.name,
 						"supplier": supplier,
 						"docstatus": ["!=", 2]  # Cancel edilmemiş
 					}
@@ -489,8 +489,8 @@ def create_agreements_for_customer_on_update(doc, method=None):
 				
 				# Agreement yoksa oluştur
 				if not existing_agreement:
-					print(f"\n\n\n DEBUG-AGREEMENT-OU-4 Agreement oluşturuluyor: Customer={doc.custom_restaurant_name}, Supplier={supplier}, Vendor Index={idx}")
-					_create_agreement(doc.custom_restaurant_name, supplier, vendor_index=idx)
+					print(f"\n\n\n DEBUG-AGREEMENT-OU-4 Agreement oluşturuluyor: Customer={doc.name}, Supplier={supplier}, Vendor Index={idx}")
+					_create_agreement(doc.name, supplier, vendor_index=idx)
 				else:
 					print(f"\n\n\n DEBUG-AGREEMENT-OU-5 Agreement zaten mevcut, atlanıyor")
 		
