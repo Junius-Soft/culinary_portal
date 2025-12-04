@@ -680,9 +680,9 @@ class SynchroniseSalesOrder(SynchroniseWooCommerce):
 			self.customer = customer
 
 		# self.create_or_update_address(wc_order)
-		contact = create_contact(raw_billing_data, self.customer)
+		# contact = create_contact(raw_billing_data, self.customer)
 		self.customer.reload()
-		self.customer.customer_primary_contact = contact.name
+		# self.customer.customer_primary_contact = contact.name
 		try:
 			self.customer.save()
 		except Exception:
