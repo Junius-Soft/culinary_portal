@@ -535,63 +535,66 @@ def toggle_customer_status(customer_name):
         print(f"\n\n\n DEBUG: WordPress Update - Status: {resp.status_code}")
         print(f"\n\n\n DEBUG: WordPress Update - Response: {resp.text}")
         
+        # WordPress güncelleme durumunu kontrol et
+        wordpress_updated = False
+        warning_message = None
+        
         # Eğer 404 hatası alınırsa, custom_portal_user_id geçersiz demektir
         if resp.status_code == 404:
-            # Email ile doğru user'ı bul ve custom_portal_user_id'yi düzelt
-            if not customer_email:
-                return {
-                    "status": "error",
-                    "message": frappe._("custom_portal_user_id ({0}) is invalid and customer has no email").format(wp_user_id)
-                }
+            print(f"\n\n\n DEBUG: custom_portal_user_id ({wp_user_id}) geçersiz (404)")
             
-            print(f"\n\n\n DEBUG: custom_portal_user_id ({wp_user_id}) geçersiz, email ile aranıyor...")
-            wp_user = _find_wordpress_user_by_email(customer_email)
+            # Email ile doğru user'ı bulmaya çalış
+            if customer_email:
+                print(f"\n\n\n DEBUG: Email ile aranıyor: {customer_email}")
+                wp_user = _find_wordpress_user_by_email(customer_email)
+                
+                if wp_user:
+                    # Doğru ID'yi bulduk, güncelle ve tekrar dene
+                    wp_user_id = wp_user.get("id")
+                    customer_doc.custom_portal_user_id = wp_user_id
+                    print(f"\n\n\n DEBUG: custom_portal_user_id düzeltildi: {wp_user_id}")
+                    
+                    # Tekrar dene
+                    url = f"{get_wo_url()}/wp-json/wp/v2/users/{wp_user_id}"
+                    resp = requests.put(
+                        url,
+                        auth=(get_wp_user(), get_wp_app_key()),
+                        json=payload,
+                        headers={"Content-Type": "application/json"},
+                        timeout=40,
+                    )
+                    
+                    print(f"\n\n\n DEBUG: Retry - Status: {resp.status_code}")
+                    
+                    if resp.status_code in (200, 201):
+                        wordpress_updated = True
+                    else:
+                        warning_message = frappe._("WordPress user found but update failed. Customer approved in Frappe only.")
+                else:
+                    warning_message = frappe._("WordPress user not found. Customer approved in Frappe only.")
+            else:
+                warning_message = frappe._("No email found to search WordPress user. Customer approved in Frappe only.")
             
-            if not wp_user:
-                return {
-                    "status": "error",
-                    "message": frappe._("custom_portal_user_id ({0}) is invalid and WordPress user not found with email: {1}").format(wp_user_id, customer_email)
-                }
-            
-            # Doğru ID'yi bulduk, güncelle
-            wp_user_id = wp_user.get("id")
-            customer_doc.custom_portal_user_id = wp_user_id
-            print(f"\n\n\n DEBUG: custom_portal_user_id düzeltildi: {wp_user_id}")
-            
-            # Tekrar dene
-            url = f"{get_wo_url()}/wp-json/wp/v2/users/{wp_user_id}"
-            resp = requests.put(
-                url,
-                auth=(get_wp_user(), get_wp_app_key()),
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=40,
-            )
-            
-            print(f"\n\n\n DEBUG: Retry - Status: {resp.status_code}")
-            
-            if resp.status_code not in (200, 201):
+            # WordPress güncellenemese bile devam et - Frappe'de güncelle
+            if not wordpress_updated:
                 frappe.log_error(
-                    title="Customer Approve Error (After ID Correction)",
-                    message=f"Customer: {customer_name}\nCorrected User ID: {wp_user_id}\nEmail: {customer_email}\nStatus: {resp.status_code}\nResponse: {resp.text}",
+                    title="Customer Approve - WordPress Update Failed",
+                    message=f"Customer: {customer_name}\nUser ID: {wp_user_id}\nEmail: {customer_email}\nWordPress update failed but proceeding with Frappe update",
                 )
-                return {
-                    "status": "error",
-                    "message": frappe._("custom_portal_user_id corrected but update still failed. Status: {0}").format(resp.status_code)
-                }
         
         elif resp.status_code not in (200, 201):
-            # Başka bir hata
+            # Başka bir hata - yine de Frappe'de güncelle ama uyarı ver
+            warning_message = frappe._("WordPress update failed (Status: {0}). Customer approved in Frappe only.").format(resp.status_code)
             frappe.log_error(
-                title="Customer Approve Error",
+                title="Customer Approve - WordPress Error",
                 message=f"Customer: {customer_name}\nUser ID: {wp_user_id}\nEmail: {customer_email}\nStatus: {resp.status_code}\nResponse: {resp.text}",
             )
-            return {
-                "status": "error",
-                "message": frappe._("Failed to update customer role in WordPress. Status: {0}").format(resp.status_code)
-            }
+        else:
+            # Başarılı!
+            wordpress_updated = True
         
-        # Başarılı! Customer dokümantını güncelle
+        # Her durumda Customer dokümantını güncelle (WordPress başarısız olsa bile)
+        # Bu sayede on_update hooks çalışır ve mail gönderilir
         customer_doc.custom_role = new_role
         customer_doc.disabled = new_disabled
         
@@ -602,12 +605,18 @@ def toggle_customer_status(customer_name):
         customer_doc.save(ignore_permissions=True)
         frappe.db.commit()
         
+        # Başarı mesajı oluştur
+        success_message = frappe._("Customer '{0}' has been approved successfully").format(customer_display_name)
+        if warning_message:
+            success_message += f"<br><br>⚠️ {warning_message}"
+        
         return {
             "status": "success",
-            "message": frappe._("Customer '{0}' has been approved successfully").format(customer_display_name),
+            "message": success_message,
             "customer_name": customer_display_name,
             "disabled": new_disabled,
-            "custom_role": new_role
+            "custom_role": new_role,
+            "wordpress_updated": wordpress_updated
         }
         
     except Exception as e:
