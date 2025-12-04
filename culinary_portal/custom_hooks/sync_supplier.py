@@ -439,13 +439,8 @@ def toggle_customer_status(customer_name):
         if not customer_name:
             return {"status": "error", "message": frappe._("Customer name not found")}
         
-        # Customer'ı al
-        customer_doc = frappe.db.get_value(
-            "Customer",
-            customer_name,
-            ["name", "customer_name", "disabled", "custom_portal_user_id", "custom_role"],
-            as_dict=True
-        )
+        # Customer dokümantını al (get_doc ile - hooks'ları tetiklemek için)
+        customer_doc = frappe.get_doc("Customer", customer_name)
         
         if not customer_doc:
             return {
@@ -453,10 +448,10 @@ def toggle_customer_status(customer_name):
                 "message": frappe._("Customer not found: '{0}'").format(customer_name)
             }
         
-        customer_display_name = customer_doc.get("customer_name") or customer_name
+        customer_display_name = customer_doc.customer_name or customer_name
         
         # WordPress User ID'yi al - custom_portal_user_id'yi direkt kullan
-        wp_user_id = customer_doc.get("custom_portal_user_id")
+        wp_user_id = customer_doc.custom_portal_user_id
         
         # custom_portal_user_id kontrolü
         if not wp_user_id or wp_user_id == 0:
@@ -484,18 +479,24 @@ def toggle_customer_status(customer_name):
         if resp.status_code not in (200, 201):
             frappe.log_error(
                 title="Customer Approve Error",
-                message=f"User ID: {wp_user_id}\nEmail: {customer_doc.get('email_id')}\nStatus: {resp.status_code}\nResponse: {resp.text}",
+                message=f"User ID: {wp_user_id}\nEmail: {customer_doc.email_id}\nStatus: {resp.status_code}\nResponse: {resp.text}",
             )
             return {
                 "status": "error",
                 "message": frappe._("Failed to update customer role in WordPress. Status: {0}, Response: {1}").format(resp.status_code, resp.text[:200])
             }
         
-        # Customer doctype'ındaki custom_role ve disabled alanlarını güncelle
-        frappe.db.set_value("Customer", customer_doc.name, {
-            "custom_role": new_role,
-            "disabled": new_disabled
-        })
+        # Customer dokümantındaki custom_role ve disabled alanlarını güncelle
+        # NOT: Artık frappe.db.set_value yerine doc.save() kullanıyoruz
+        # Bu sayede on_update hooks'ları tetiklenir ve mail gönderilir
+        customer_doc.custom_role = new_role
+        customer_doc.disabled = new_disabled
+        
+        # Skip WordPress sync flag'i set et (çünkü zaten yukarıda WordPress'e istek attık)
+        customer_doc.flags.skip_wordpress_sync = True
+        
+        # Kaydet - bu on_update hooks'larını tetikleyecek
+        customer_doc.save(ignore_permissions=True)
         frappe.db.commit()
         
         return {
