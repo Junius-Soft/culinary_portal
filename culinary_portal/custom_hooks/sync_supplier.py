@@ -487,40 +487,37 @@ def toggle_customer_status(customer_name):
         customer_display_name = customer_doc.customer_name or customer_name
         customer_email = customer_doc.email_id
         
-        # Email kontrolü
-        if not customer_email:
-            return {
-                "status": "error",
-                "message": frappe._("Customer does not have email address")
-            }
-        
-        # WordPress User ID'yi al
+        # custom_portal_user_id kontrolü
         wp_user_id = customer_doc.custom_portal_user_id
         
-        print(f"\n\n\n DEBUG: toggle_customer_status - Customer: {customer_name}, Email: {customer_email}, WP User ID: {wp_user_id}")
-        
-        # Eğer User ID yoksa veya geçersizse, email ile ara
         if not wp_user_id or wp_user_id == 0:
-            print(f"\n\n\n DEBUG: No User ID found, searching by email...")
+            # Email ile WordPress user bul ve custom_portal_user_id'yi güncelle
+            if not customer_email:
+                return {
+                    "status": "error",
+                    "message": frappe._("Customer does not have email address and custom_portal_user_id")
+                }
+            
+            print(f"\n\n\n DEBUG: custom_portal_user_id boş, email ile aranıyor: {customer_email}")
             wp_user = _find_wordpress_user_by_email(customer_email)
             
-            if wp_user:
-                wp_user_id = wp_user.get("id")
-                print(f"\n\n\n DEBUG: Found User ID: {wp_user_id}")
-                
-                # User ID'yi Customer'a kaydet
-                customer_doc.custom_portal_user_id = wp_user_id
-            else:
+            if not wp_user:
                 return {
                     "status": "error",
                     "message": frappe._("WordPress user not found with email: {0}").format(customer_email)
                 }
+            
+            wp_user_id = wp_user.get("id")
+            customer_doc.custom_portal_user_id = wp_user_id
+            print(f"\n\n\n DEBUG: custom_portal_user_id güncellendi: {wp_user_id}")
+        
+        print(f"\n\n\n DEBUG: toggle_customer_status - Customer: {customer_name}, custom_portal_user_id: {wp_user_id}")
         
         # Yeni role ve disabled durumu
         new_role = "customer"
         new_disabled = 0  # Enable customer
         
-        # WordPress User API'ye PUT isteği at (role güncellemesi için)
+        # WordPress User API'ye PUT isteği at (custom_portal_user_id ile)
         url = f"{get_wo_url()}/wp-json/wp/v2/users/{wp_user_id}"
         payload = {"roles": [new_role]}
         
@@ -538,60 +535,70 @@ def toggle_customer_status(customer_name):
         print(f"\n\n\n DEBUG: WordPress Update - Status: {resp.status_code}")
         print(f"\n\n\n DEBUG: WordPress Update - Response: {resp.text}")
         
-        if resp.status_code not in (200, 201):
-            # 404 hatası - User ID hala geçersiz, email ile tekrar dene
-            if resp.status_code == 404:
-                print(f"\n\n\n DEBUG: User ID {wp_user_id} not found, retrying with email search...")
-                wp_user = _find_wordpress_user_by_email(customer_email)
-                
-                if wp_user:
-                    wp_user_id = wp_user.get("id")
-                    customer_doc.custom_portal_user_id = wp_user_id
-                    
-                    # Tekrar dene
-                    url = f"{get_wo_url()}/wp-json/wp/v2/users/{wp_user_id}"
-                    resp = requests.put(
-                        url,
-                        auth=(get_wp_user(), get_wp_app_key()),
-                        json=payload,
-                        headers={"Content-Type": "application/json"},
-                        timeout=40,
-                    )
-                    
-                    if resp.status_code not in (200, 201):
-                        frappe.log_error(
-                            title="Customer Approve Error (Retry Failed)",
-                            message=f"Customer: {customer_name}\nUser ID: {wp_user_id}\nEmail: {customer_email}\nStatus: {resp.status_code}\nResponse: {resp.text}",
-                        )
-                        return {
-                            "status": "error",
-                            "message": frappe._("Failed to update customer role in WordPress. User found but update failed.")
-                        }
-                else:
-                    return {
-                        "status": "error",
-                        "message": frappe._("WordPress user with email {0} not found.").format(customer_email)
-                    }
-            else:
+        # Eğer 404 hatası alınırsa, custom_portal_user_id geçersiz demektir
+        if resp.status_code == 404:
+            # Email ile doğru user'ı bul ve custom_portal_user_id'yi düzelt
+            if not customer_email:
+                return {
+                    "status": "error",
+                    "message": frappe._("custom_portal_user_id ({0}) is invalid and customer has no email").format(wp_user_id)
+                }
+            
+            print(f"\n\n\n DEBUG: custom_portal_user_id ({wp_user_id}) geçersiz, email ile aranıyor...")
+            wp_user = _find_wordpress_user_by_email(customer_email)
+            
+            if not wp_user:
+                return {
+                    "status": "error",
+                    "message": frappe._("custom_portal_user_id ({0}) is invalid and WordPress user not found with email: {1}").format(wp_user_id, customer_email)
+                }
+            
+            # Doğru ID'yi bulduk, güncelle
+            wp_user_id = wp_user.get("id")
+            customer_doc.custom_portal_user_id = wp_user_id
+            print(f"\n\n\n DEBUG: custom_portal_user_id düzeltildi: {wp_user_id}")
+            
+            # Tekrar dene
+            url = f"{get_wo_url()}/wp-json/wp/v2/users/{wp_user_id}"
+            resp = requests.put(
+                url,
+                auth=(get_wp_user(), get_wp_app_key()),
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=40,
+            )
+            
+            print(f"\n\n\n DEBUG: Retry - Status: {resp.status_code}")
+            
+            if resp.status_code not in (200, 201):
                 frappe.log_error(
-                    title="Customer Approve Error",
-                    message=f"Customer: {customer_name}\nUser ID: {wp_user_id}\nEmail: {customer_email}\nStatus: {resp.status_code}\nResponse: {resp.text}",
+                    title="Customer Approve Error (After ID Correction)",
+                    message=f"Customer: {customer_name}\nCorrected User ID: {wp_user_id}\nEmail: {customer_email}\nStatus: {resp.status_code}\nResponse: {resp.text}",
                 )
                 return {
                     "status": "error",
-                    "message": frappe._("Failed to update customer role in WordPress. Status: {0}").format(resp.status_code)
+                    "message": frappe._("custom_portal_user_id corrected but update still failed. Status: {0}").format(resp.status_code)
                 }
         
-        # Customer dokümantındaki custom_role ve disabled alanlarını güncelle
-        # NOT: Artık frappe.db.set_value yerine doc.save() kullanıyoruz
-        # Bu sayede on_update hooks'ları tetiklenir ve mail gönderilir
+        elif resp.status_code not in (200, 201):
+            # Başka bir hata
+            frappe.log_error(
+                title="Customer Approve Error",
+                message=f"Customer: {customer_name}\nUser ID: {wp_user_id}\nEmail: {customer_email}\nStatus: {resp.status_code}\nResponse: {resp.text}",
+            )
+            return {
+                "status": "error",
+                "message": frappe._("Failed to update customer role in WordPress. Status: {0}").format(resp.status_code)
+            }
+        
+        # Başarılı! Customer dokümantını güncelle
         customer_doc.custom_role = new_role
         customer_doc.disabled = new_disabled
         
         # Skip WordPress sync flag'i set et (çünkü zaten yukarıda WordPress'e istek attık)
         customer_doc.flags.skip_wordpress_sync = True
         
-        # Kaydet - bu on_update hooks'larını tetikleyecek
+        # Kaydet - bu on_update hooks'larını tetikleyecek ve mail gönderilecek
         customer_doc.save(ignore_permissions=True)
         frappe.db.commit()
         
