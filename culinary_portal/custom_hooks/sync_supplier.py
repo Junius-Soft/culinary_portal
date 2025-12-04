@@ -464,9 +464,14 @@ def toggle_customer_status(customer_name):
         new_role = "customer"
         new_disabled = 0  # Enable customer
         
+        print(f"\n\n\n DEBUG: toggle_customer_status - Customer: {customer_name}, WP User ID: {wp_user_id}")
+        
         # WordPress User API'ye PUT isteği at (role güncellemesi için)
         url = f"{get_wo_url()}/wp-json/wp/v2/users/{wp_user_id}"
         payload = {"roles": [new_role]}
+        
+        print(f"\n\n\n DEBUG: WordPress Update - URL: {url}")
+        print(f"\n\n\n DEBUG: WordPress Update - Payload: {payload}")
         
         resp = requests.put(
             url,
@@ -476,14 +481,25 @@ def toggle_customer_status(customer_name):
             timeout=40,
         )
         
+        print(f"\n\n\n DEBUG: WordPress Update - Status: {resp.status_code}")
+        print(f"\n\n\n DEBUG: WordPress Update - Response: {resp.text}")
+        
         if resp.status_code not in (200, 201):
+            error_message = frappe._("Failed to update customer role in WordPress.")
+            
+            # 404 hatası özel mesaj
+            if resp.status_code == 404:
+                error_message = frappe._("WordPress User ID ({0}) not found. Please check custom_portal_user_id field.").format(wp_user_id)
+            else:
+                error_message = frappe._("Failed to update customer role in WordPress. Status: {0}").format(resp.status_code)
+            
             frappe.log_error(
                 title="Customer Approve Error",
-                message=f"User ID: {wp_user_id}\nEmail: {customer_doc.email_id}\nStatus: {resp.status_code}\nResponse: {resp.text}",
+                message=f"Customer: {customer_name}\nUser ID: {wp_user_id}\nEmail: {customer_doc.email_id}\nStatus: {resp.status_code}\nResponse: {resp.text}",
             )
             return {
                 "status": "error",
-                "message": frappe._("Failed to update customer role in WordPress. Status: {0}, Response: {1}").format(resp.status_code, resp.text[:200])
+                "message": error_message
             }
         
         # Customer dokümantındaki custom_role ve disabled alanlarını güncelle
