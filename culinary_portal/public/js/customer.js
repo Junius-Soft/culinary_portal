@@ -4,7 +4,7 @@ frappe.ui.form.on('Customer', {
         if (!frm.is_new() && frm.doc.custom_role === 'customerpendingapprove') {
             frm.add_custom_button(__('Approve Customer'), function() {
                 toggle_customer_status(frm);
-            }, __('Portal'));
+            });
         }
     }
 });
