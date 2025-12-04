@@ -255,13 +255,14 @@
 			manager.bind(listview);
 		};
 
-		const original_refresh = settings.refresh;
-		settings.refresh = function (listview) {
-			if (original_refresh) {
-				original_refresh.call(this, listview);
-			}
-			manager.decorate();
-		};
+	const original_refresh = settings.refresh;
+	settings.refresh = function (listview) {
+		if (original_refresh) {
+			original_refresh.call(this, listview);
+		}
+		manager.bind(listview);
+		manager.decorate();
+	};
 
 		settings.__culinary_portal_patched = true;
 	};
