@@ -156,8 +156,8 @@ def attach_customer_files_on_update(doc, method=None):
 				)
 				
 				if existing_by_hash:
-					print(f"\n\n\n DEBUG-FILE-8 {field_name} için aynı içerik zaten mevcut: {existing_by_hash[0].name}")
-					# Aynı içerik zaten var, eski dosyaları sil (eğer farklı dosyalarsa)
+					print(f"\n\n\n DEBUG-FILE-8 {field_name} için aynı içerik zaten bu field'a mevcut: {existing_by_hash[0].name}")
+					# Aynı içerik zaten bu field'a var, eski dosyaları sil (eğer farklı dosyalarsa)
 					if existing_files:
 						for old_file in existing_files:
 							if old_file.name and old_file.name != existing_by_hash[0].name:
@@ -172,44 +172,117 @@ def attach_customer_files_on_update(doc, method=None):
 								print(f"\n\n\n DEBUG-FILE-6 {field_name} için eski dosya silindi: {old_file.name}")
 
 					# Dosyayı attach et - her field için ayrı File kaydı oluşturulacak
-					# save_file her çağrıldığında yeni bir File kaydı oluşturur (attached_to_field ile)
-					try:
-						file_doc = save_file(
-							fname=file_name,
-							content=file_content,
-							dt="Customer",
-							dn=doc.name,
-							df=field_name,
-							is_private=1,
-						)
-						print(f"\n\n\n DEBUG-FILE-7 {field_name} başariyla indirildi ve attach edildi: {file_doc.name}")
-					except frappe.DuplicateEntryError:
-						# Duplicate entry hatası - aynı content hash ile başka bir field'a attach edilmiş dosya var
-						# Bu durumda, aynı dosyayı bu field için de oluştur
-						other_file = frappe.get_all(
-							"File",
-							{"content_hash": content_hash},
-							["name"],
-							limit=1,
-						)
-						if other_file:
-							other_file_doc = frappe.get_doc("File", other_file[0].name)
-							# Aynı dosyanın bu field için yeni bir kopyasını oluştur
-							new_file = frappe.get_doc({
-								"doctype": "File",
-								"file_name": other_file_doc.file_name,
-								"file_url": other_file_doc.file_url,
-								"attached_to_doctype": "Customer",
-								"attached_to_name": doc.name,
-								"attached_to_field": field_name,
-								"folder": other_file_doc.folder,
-								"file_size": other_file_doc.file_size,
-								"content_hash": other_file_doc.content_hash,
-								"is_private": other_file_doc.is_private,
-							})
-							new_file.flags.ignore_permissions = True
+					# ÖNEMLİ: Aynı dosya farklı field'lara eklenebilir, her biri için ayrı File kaydı olmalı
+					
+					# Önce aynı content_hash'e sahip başka bir field'a bağlı dosya var mı kontrol et
+					other_field_file = frappe.get_all(
+						"File",
+						filters=[
+							["attached_to_doctype", "=", "Customer"],
+							["attached_to_name", "=", doc.name],
+							["content_hash", "=", content_hash],
+							["attached_to_field", "!=", field_name],  # Bu field dışındaki field'lar
+						],
+						fields=["name", "file_name", "file_url", "folder", "file_size", "is_private"],
+						limit=1,
+					)
+					
+					if other_field_file:
+						# Aynı dosya başka bir field'a bağlı - bu field için yeni bir File kaydı oluştur
+						other_file_doc = frappe.get_doc("File", other_field_file[0].name)
+						new_file = frappe.get_doc({
+							"doctype": "File",
+							"file_name": file_name,  # Bu field için özel isim
+							"file_url": other_file_doc.file_url,
+							"attached_to_doctype": "Customer",
+							"attached_to_name": doc.name,
+							"attached_to_field": field_name,  # Bu field'a bağla
+							"folder": other_file_doc.folder,
+							"file_size": other_file_doc.file_size,
+							"content_hash": other_file_doc.content_hash,
+							"is_private": other_file_doc.is_private,
+						})
+						new_file.flags.ignore_permissions = True
+						try:
 							new_file.insert(ignore_permissions=True)
 							print(f"\n\n\n DEBUG-FILE-9 {field_name} için aynı dosyanın kopyası oluşturuldu: {new_file.name}")
+						except frappe.DuplicateEntryError:
+							# Duplicate entry - muhtemelen aynı anda başka bir işlem de eklemiş
+							# Mevcut dosyayı kontrol et
+							existing = frappe.get_all(
+								"File",
+								{
+									"attached_to_doctype": "Customer",
+									"attached_to_name": doc.name,
+									"attached_to_field": field_name,
+									"content_hash": content_hash,
+								},
+								["name"],
+								limit=1,
+							)
+							if existing:
+								print(f"\n\n\n DEBUG-FILE-10 {field_name} için dosya zaten mevcut (duplicate): {existing[0].name}")
+							else:
+								raise
+					else:
+						# Aynı dosya başka field'a bağlı değil - normal şekilde ekle
+						try:
+							file_doc = save_file(
+								fname=file_name,
+								content=file_content,
+								dt="Customer",
+								dn=doc.name,
+								df=field_name,
+								is_private=1,
+							)
+							# Dönen dosyanın doğru field'a bağlı olduğunu kontrol et
+							if hasattr(file_doc, 'attached_to_field') and file_doc.attached_to_field != field_name:
+								# Yanlış field'a bağlı - yeni bir File kaydı oluştur
+								print(f"\n\n\n DEBUG-FILE-WARN {field_name} için dosya yanlış field'a bağlı, yeni kayıt oluşturuluyor")
+								actual_file = frappe.get_doc("File", file_doc.name)
+								new_file = frappe.get_doc({
+									"doctype": "File",
+									"file_name": file_name,
+									"file_url": actual_file.file_url,
+									"attached_to_doctype": "Customer",
+									"attached_to_name": doc.name,
+									"attached_to_field": field_name,
+									"folder": actual_file.folder,
+									"file_size": actual_file.file_size,
+									"content_hash": actual_file.content_hash,
+									"is_private": actual_file.is_private,
+								})
+								new_file.flags.ignore_permissions = True
+								new_file.insert(ignore_permissions=True)
+								file_doc = new_file
+							print(f"\n\n\n DEBUG-FILE-7 {field_name} başariyla indirildi ve attach edildi: {file_doc.name}")
+						except frappe.DuplicateEntryError:
+							# Duplicate entry hatası - aynı content hash ile başka bir field'a attach edilmiş dosya var
+							# Bu durumda, aynı dosyayı bu field için de oluştur
+							other_file = frappe.get_all(
+								"File",
+								{"content_hash": content_hash},
+								["name"],
+								limit=1,
+							)
+							if other_file:
+								other_file_doc = frappe.get_doc("File", other_file[0].name)
+								# Aynı dosyanın bu field için yeni bir kopyasını oluştur
+								new_file = frappe.get_doc({
+									"doctype": "File",
+									"file_name": file_name,
+									"file_url": other_file_doc.file_url,
+									"attached_to_doctype": "Customer",
+									"attached_to_name": doc.name,
+									"attached_to_field": field_name,
+									"folder": other_file_doc.folder,
+									"file_size": other_file_doc.file_size,
+									"content_hash": other_file_doc.content_hash,
+									"is_private": other_file_doc.is_private,
+								})
+								new_file.flags.ignore_permissions = True
+								new_file.insert(ignore_permissions=True)
+								print(f"\n\n\n DEBUG-FILE-9 {field_name} için aynı dosyanın kopyası oluşturuldu: {new_file.name}")
 
 			except Exception as e:
 				print(f"\n\n\n DEBUG-FILE-ERROR {field_name} attach hatasi: {str(e)}")
