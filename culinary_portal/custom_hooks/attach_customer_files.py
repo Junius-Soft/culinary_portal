@@ -83,22 +83,36 @@ def attach_customer_files_on_update(doc, method=None):
 				print(f"\n\n\n DEBUG-FILE-4 {field_name} yerel dosya, atlaniyor: {file_url}")
 				continue
 
-			# Değişiklik kontrolü: Eğer URL değişmediyse işlem yapma
-			if old_doc:
+			# Bu field için mevcut dosyayı kontrol et
+			# ÖNEMLİ: Aynı URL farklı field'lara eklenebilir, bu yüzden kontrol sadece bu field için yapılmalı
+			existing_file_for_field = frappe.db.exists(
+				"File",
+				{
+					"attached_to_doctype": "Customer",
+					"attached_to_name": doc.name,
+					"attached_to_field": field_name,  # Sadece bu field için kontrol
+				}
+			)
+
+			# Değişiklik kontrolü: Eğer URL değişmediyse ve bu field için dosya zaten varsa işlem yapma
+			if old_doc and existing_file_for_field:
 				old_file_url = (getattr(old_doc, field_name, "") or "").strip()
+				print(f"\n\n\n DEBUG-FILE-9 {field_name} old_file_url: '{old_file_url}', new_file_url: '{file_url}'")
+				# Sadece bu field'ın eski URL'si ile karşılaştır
 				if old_file_url == file_url:
-					# URL aynı, mevcut dosyanın doğru field'a attach edildiğini kontrol et
-					existing_file = frappe.db.exists(
-						"File",
-						{
-							"attached_to_doctype": "Customer",
-							"attached_to_name": doc.name,
-							"attached_to_field": field_name,
-						}
-					)
-					if existing_file:
-						print(f"\n\n\n DEBUG-FILE-8 {field_name} URL değişmedi ve dosya zaten attach edilmiş, atlaniyor")
-						continue
+					# URL aynı ve dosya zaten bu field'a attach edilmiş - atla
+					print(f"\n\n\n DEBUG-FILE-8 {field_name} URL değişmedi ve dosya zaten bu field'a attach edilmiş, atlaniyor")
+					continue
+				else:
+					# URL değişmiş - işleme devam et (eski dosya silinecek, yeni dosya eklenecek)
+					print(f"\n\n\n DEBUG-FILE-11 {field_name} URL değişti, işleme devam ediliyor")
+			elif existing_file_for_field:
+				# old_doc yok ama dosya var - muhtemelen yeni kayıt veya ilk kez ekleniyor
+				# Aynı URL başka bir field'a eklenmiş olsa bile bu field için ekleme yapılmalı
+				print(f"\n\n\n DEBUG-FILE-12 {field_name} dosya var ama old_doc kontrolü yapılamadı, işleme devam ediliyor")
+			else:
+				# Bu field için dosya yok - işleme devam et
+				print(f"\n\n\n DEBUG-FILE-13 {field_name} bu field için dosya yok, işleme devam ediliyor")
 
 			file_name = build_file_name(document_title, file_url)
 
