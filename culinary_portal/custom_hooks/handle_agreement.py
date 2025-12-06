@@ -211,9 +211,14 @@ def handle_agreement_saved(doc, method=None):
 
 def handle_agreement_cancelled(doc, method=None):
     """
-    Agreement cancel olduğunda category'lerin B2B King visibility'sini kapatır (0 yapar).
+    Agreement cancel olduğunda:
+    1. Status'u "Cancelled" olarak günceller
+    2. Category'lerin B2B King visibility'sini kapatır (0 yapar).
     """
     try:
+        # Status'u "Cancelled" olarak güncelle
+        doc.db_set("status", "Cancelled", update_modified=False)
+        
         # agreement_items içinden benzersiz WC category ID'lerini topla
         unique_wc_category_ids = []
         seen_item_groups = set()
