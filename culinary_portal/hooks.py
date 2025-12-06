@@ -14,7 +14,7 @@ fixtures = [
     # {"dt": "Item Group"},
     # {"dt": "Item"},
     # {"dt": "Supplier"},
-    # {"dt": "Company"},
+    {"dt": "Customer Aggrements"},
 ]
 
 # required_apps = []
@@ -198,6 +198,7 @@ doc_events = {
 			"culinary_portal.custom_hooks.attach_customer_files.attach_customer_files_on_update",
 		],
 		"on_trash": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_on_trash",
+		"onload": "culinary_portal.custom_hooks.load_customer_agreements.load_customer_agreements",
 	},
 	"Address": {
 		"on_update": "culinary_portal.custom_hooks.create_b2b_group.handle_address_wordpress_sync",
