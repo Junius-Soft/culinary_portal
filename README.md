@@ -51,6 +51,12 @@ Culinary Portal is a custom ERPNext application designed to integrate ERPNext wi
 - ✅ Customer deletion syncs to WordPress (deletes User and B2B Group)
 - ✅ Background job processing for delete operations
 - ✅ Portal User ID tracking
+- ✅ **Customer Agreements Table View** - Display all Agreements for a Customer
+  - Automatic loading of Agreements when Customer form is opened
+  - Shows Agreement name (clickable link), Supplier, Valid From/To dates, Status
+  - Includes Agreement Services (comma-separated list)
+  - Read-only table for viewing only (no manual editing)
+  - Real-time refresh on form reload
 
 ### 6️⃣ **Agreement Category Visibility Management**
 - ✅ Automatic category visibility update when Agreement is saved
@@ -60,6 +66,7 @@ Culinary Portal is a custom ERPNext application designed to integrate ERPNext wi
 - ✅ WordPress Category meta update for B2B King
 - ✅ Batch processing for multiple categories
 - ✅ Real-time sync on Agreement save/cancel
+- ✅ **Agreement Status Auto-Update on Cancel** - Status automatically set to "Cancelled" when Agreement is cancelled
 
 ### 7️⃣ **Multilingual Support**
 - ✅ English (en) - default
@@ -307,6 +314,54 @@ Errors: 0/3
 - ✅ Parent category (374) remains enabled for other agreements
 - ✅ Value changes from `["1"]` (visible) to `["0"]` (hidden)
 - ✅ Immediate effect on WordPress store
+- ✅ **Agreement Status Update:** When Agreement is cancelled, status is automatically set to "Cancelled" in database
+
+---
+
+### Customer Agreements View
+
+#### Automatic Agreement Loading (Customer Form)
+
+When a Customer form is opened in ERPNext:
+1. System automatically fetches all Agreements for that Customer
+2. Loads data into `custom_customer_agreements` table field:
+   - **name1**: Agreement name (clickable link to Agreement form)
+   - **supplier**: Supplier name
+   - **valid_from**: Agreement start date
+   - **valid_to**: Agreement end date
+   - **status**: Agreement status (Active, Expired, Cancelled, Not Started)
+   - **services**: Agreement Services (comma-separated list from Agreement Services child table)
+3. Table is read-only (viewing only, no manual editing)
+4. Status badges are color-coded:
+   - 🟢 Active (green)
+   - 🔴 Expired (red)
+   - ⚫ Cancelled (dark)
+   - 🟡 Not Started (yellow)
+
+**Example Table View:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ CUSTOMER AGREEMENTS                                         │
+├──────────────┬────────────┬────────────┬─────────────────────┤
+│ Agreement    │ Supplier   │ Valid From │ Services            │
+├──────────────┼────────────┼────────────┼─────────────────────┤
+│ CUST-SUP-001 │ Supplier 1 │ 01-01-2025 │ Service A, Service B│
+│ CUST-SUP-002 │ Supplier 2 │ 15-02-2025 │ Service C           │
+└──────────────┴────────────┴────────────┴─────────────────────┘
+```
+
+**Features:**
+- ✅ Click on Agreement name to open Agreement form
+- ✅ All fields are read-only (no manual editing)
+- ✅ Automatic refresh on form reload
+- ✅ Shows all Agreements regardless of status
+- ✅ Includes Agreement Services from Agreement Services child table
+
+**Technical Details:**
+- Hook: `Customer.onload` → `load_customer_agreements()`
+- Child Doctype: `Customer Aggrements` (istable=1)
+- Table Field: `custom_customer_agreements` (read_only=1)
+- Services are fetched from `Agreement Services` child table and joined as comma-separated string
 
 ---
 
@@ -391,12 +446,14 @@ culinary_portal/
 │   │   ├── sync_supplier.py        # Supplier & Dokan sync
 │   │   ├── create_category.py      # Item Group sync
 │   │   ├── create_b2b_group.py     # Customer & B2B Group sync
-│   │   └── handle_agreement.py     # Agreement category visibility sync
+│   │   ├── handle_agreement.py     # Agreement category visibility sync
+│   │   └── load_customer_agreements.py  # Customer Agreements table loading
 │   ├── public/
 │   │   └── js/
 │   │       ├── item.js             # Item form customizations
 │   │       ├── supplier.js         # Supplier form button
-│   │       └── supplier_list.js    # Bulk sync button
+│   │       ├── supplier_list.js    # Bulk sync button
+│   │       └── customer.js         # Customer Agreements table styling
 │   ├── translations/
 │   │   ├── tr.csv                  # Turkish translations
 │   │   ├── en.csv                  # English translations
@@ -433,6 +490,10 @@ culinary_portal/
   - Stores the WordPress user ID when customer is created from WordPress
 - `custom_b2b_group_id` (Data/Int) - B2B King Group ID
   - Stores the WordPress B2B Group ID for this customer
+- `custom_customer_agreements` (Table) - Customer Agreements child table
+  - Table field linked to "Customer Aggrements" child doctype
+  - Automatically populated when Customer form is opened
+  - Read-only field for viewing Agreements only
 
 **Note:** These fields are automatically created via fixtures on app installation.
 
@@ -464,9 +525,12 @@ doc_events = {
     "Customer": {
         "on_update": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_b2b_group",
         "on_trash": "culinary_portal.custom_hooks.create_b2b_group.handle_customer_on_trash",
+        "onload": "culinary_portal.custom_hooks.load_customer_agreements.load_customer_agreements",
     },
     "Agreement": {
-        "on_update": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
+        "validate": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_before_submit",
+        "on_submit": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
+        "on_cancel": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_cancelled",
     }
 }
 ```
@@ -476,7 +540,8 @@ doc_events = {
 ```python
 doctype_js = {
     "Item": "public/js/item.js",
-    "Supplier": "public/js/supplier.js"
+    "Supplier": "public/js/supplier.js",
+    "Customer": "public/js/customer.js"
 }
 
 doctype_list_js = {
@@ -845,6 +910,9 @@ Developed for Culinary Portal by the ERPNext development team.
 - ✅ Automatic B2B King category meta update per Agreement
 - ✅ Unique item group detection for category sync
 - ✅ Category visibility disable on Agreement cancellation
+- ✅ Customer Agreements table view (automatic loading on Customer form)
+- ✅ Agreement Services display in Customer Agreements table
+- ✅ Agreement status auto-update on cancel (status → "Cancelled")
 
 ---
 
