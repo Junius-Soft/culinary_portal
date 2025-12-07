@@ -1,0 +1,125 @@
+{
+ "charts": [
+  {
+   "chart_name": "Lieferando",
+   "label": "Lieferando Chard"
+  }
+ ],
+ "content": "[{\"id\":\"72A3hHb01X\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Portal Manage</span>\",\"col\":12}},{\"id\":\"D-nUzLdz1P\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending Customer\",\"col\":4}},{\"id\":\"YWu9dG_FFP\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Customers Waiting for Approval\",\"col\":4}},{\"id\":\"7fTHXTR5i3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Active Customers\",\"col\":4}},{\"id\":\"bXh_rUxeg3\",\"type\":\"paragraph\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>K\u0131sayollar</b></span>\",\"col\":12}},{\"id\":\"Bu2bDXtMcW\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":6}},{\"id\":\"g5al-LOGn1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sat\u0131\u015f Sipari\u015fi\",\"col\":6}},{\"id\":\"10MU0CxEYh\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Anla\u015fmalar\",\"col\":6}},{\"id\":\"JgzqnQVzZj\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"M\u00fc\u015fteri\",\"col\":6}},{\"id\":\"vnyID_sze7\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tedarik\u00e7i\",\"col\":6}},{\"id\":\"UwbbxIh7Re\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Lieferando Invoice</span>\",\"col\":12}},{\"id\":\"fY3Vw5KjQz\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Lieferando Chard\",\"col\":12}},{\"id\":\"KMeZ6gIkdb\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Lieferando Montly Report\",\"col\":3}},{\"id\":\"hYcTaJfC77\",\"type\":\"card\",\"data\":{\"card_name\":\"Lieferando \u0130nvoice\",\"col\":4}}]",
+ "creation": "2025-11-20 10:18:51.515497",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "color-rank",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "Portal Manage",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Lieferando \u0130nvoice",
+   "link_count": 1,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Lieferando \u0130nvoices",
+   "link_count": 0,
+   "link_to": "Lieferando Invoice",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2025-11-30 18:01:04.405887",
+ "modified_by": "Administrator",
+ "module": "Culinary Portal",
+ "name": "Portal Manage",
+ "number_cards": [
+  {
+   "label": "Pending Customer",
+   "number_card_name": "New Customers-1"
+  },
+  {
+   "label": "Active Customers",
+   "number_card_name": "Active Customers"
+  },
+  {
+   "label": "Customers Waiting for Approval",
+   "number_card_name": "Customers Waiting for Approval-1"
+  }
+ ],
+ "owner": "idris.gemici61@gmail.com",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "Portal Manage"
+  }
+ ],
+ "sequence_id": 1.0,
+ "shortcuts": [
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "format": "{} Available",
+   "label": "Item",
+   "link_to": "Item",
+   "stats_filter": "[[\"Item\",\"disabled\",\"=\",0,false]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Yellow",
+   "doc_view": "List",
+   "format": "{}  To Deliver",
+   "label": "Sat\u0131\u015f Sipari\u015fi",
+   "link_to": "Sales Order",
+   "stats_filter": "[[\"Sales Order\",\"company\",\"like\",\"%Culinary%\",false],[\"Sales Order\",\"status\",\"in\",[\"To Deliver\",\"To Deliver and Bill\"],false]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Lieferando Montly Report",
+   "link_to": "Lieferando Report",
+   "report_ref_doctype": "Lieferando Invoice",
+   "type": "Report"
+  },
+  {
+   "color": "Pink",
+   "doc_view": "List",
+   "format": "{} Customer Pending \u0130nfo",
+   "label": "M\u00fc\u015fteri",
+   "link_to": "Customer",
+   "stats_filter": "[[\"Customer\",\"custom_role\",\"=\",\"customerpendinginfo\",false]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "format": "{} Aktif",
+   "label": "Tedarik\u00e7i",
+   "link_to": "Supplier",
+   "stats_filter": "[[\"Supplier\",\"disabled\",\"=\",0,false]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "format": "{} Aktif",
+   "label": "Anla\u015fmalar",
+   "link_to": "Agreement",
+   "stats_filter": "[[\"Agreement\",\"status\",\"=\",\"Active\",false]]",
+   "type": "DocType"
+  }
+ ],
+ "title": "Portal Manage"
+}
