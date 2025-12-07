@@ -215,6 +215,7 @@ def handle_agreement_cancelled(doc, method=None):
     1. Status'u "Cancelled" olarak günceller
     2. Category'lerin B2B King visibility'sini kapatır (0 yapar).
     """
+    frappe.throw("CICD TEST")
     try:
         # Status'u "Cancelled" olarak güncelle
         doc.db_set("status", "Cancelled", update_modified=False)
