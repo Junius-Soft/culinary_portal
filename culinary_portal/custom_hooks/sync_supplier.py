@@ -537,6 +537,9 @@ def toggle_customer_status(customer_name):
                 "message": frappe._("Customer not found: '{0}'").format(customer_name)
             }
         
+        # Güncel dokümanı almak için reload yap (timestamp'i güncellemek için - "Document modified" hatasını önlemek için)
+        customer_doc.reload()
+        
         customer_display_name = customer_doc.customer_name or customer_name
         customer_email = customer_doc.email_id
         
@@ -648,6 +651,11 @@ def toggle_customer_status(customer_name):
         
         # Her durumda Customer dokümantını güncelle (WordPress başarısız olsa bile)
         # Bu sayede on_update hooks çalışır ve mail gönderilir
+        
+        # Save işlemi yapmadan ÖNCE tekrar reload et (timestamp'i kesin olarak güncellemek için)
+        # Bu "Document modified" hatasını önler
+        customer_doc.reload()
+        
         customer_doc.custom_role = new_role
         customer_doc.disabled = new_disabled
         
@@ -655,8 +663,38 @@ def toggle_customer_status(customer_name):
         customer_doc.flags.skip_wordpress_sync = True
         
         # Kaydet - bu on_update hooks'larını tetikleyecek ve mail gönderilecek
-        customer_doc.save(ignore_permissions=True)
-        frappe.db.commit()
+        # "Document modified" hatasını yakalamak için try-except kullan
+        max_retries = 3
+        saved = False
+        for attempt in range(max_retries):
+            try:
+                customer_doc.save(ignore_permissions=True)
+                frappe.db.commit()
+                saved = True
+                break
+            except Exception as save_error:
+                error_msg = str(save_error)
+                if "Document has been modified" in error_msg or "modified after" in error_msg.lower():
+                    # Timestamp uyumsuzluğu var, tekrar reload et ve dene
+                    if attempt < max_retries - 1:
+                        customer_doc.reload()
+                        customer_doc.custom_role = new_role
+                        customer_doc.disabled = new_disabled
+                        customer_doc.flags.skip_wordpress_sync = True
+                        continue
+                    else:
+                        # Son deneme de başarısız, hatayı logla ve devam et
+                        frappe.log_error(
+                            title="Customer Approve - Save Retry Failed",
+                            message=f"Customer: {customer_name}\nAfter {max_retries} attempts, still getting modified error. Error: {error_msg}"
+                        )
+                        raise
+                else:
+                    # Başka bir hata, direkt fırlat
+                    raise
+        
+        if not saved:
+            frappe.db.commit()
         
         # Başarı mesajı oluştur
         success_message = frappe._("Customer '{0}' has been approved successfully").format(customer_display_name)
