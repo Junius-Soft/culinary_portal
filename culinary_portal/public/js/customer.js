@@ -40,62 +40,73 @@ function toggle_customer_status(frm) {
     frappe.confirm(
         action_text,
         function() {
-            // "Yes" tıklandığında önce formu kaydet
-            frm.save().then(function() {
-                // Form kaydedildikten sonra reload et ve backend çağrısını yap
-                frm.reload_doc();
-                
-                // Reload tamamlandıktan sonra backend çağrısı yap
-                setTimeout(function() {
-                    // Backend'e approve çağrısı yap
-                    frappe.call({
-                        method: 'culinary_portal.custom_hooks.sync_supplier.toggle_customer_status',
-                        args: {
-                            customer_name: frm.doc.name
-                        },
-                        freeze: true,
-                        freeze_message: __('Updating Customer Status...'),
-                        callback: function(r) {
-                            if (r.message) {
-                                const response = r.message;
+            // Backend approve çağrısını yapan fonksiyon
+            function executeApprove() {
+                // Backend'e approve çağrısı yap
+                frappe.call({
+                    method: 'culinary_portal.custom_hooks.sync_supplier.toggle_customer_status',
+                    args: {
+                        customer_name: frm.doc.name
+                    },
+                    freeze: true,
+                    freeze_message: __('Updating Customer Status...'),
+                    callback: function(r) {
+                        if (r.message) {
+                            const response = r.message;
+                            
+                            if (response.status === 'success') {
+                                frappe.show_alert({
+                                    message: `✅ ${response.message}`,
+                                    indicator: 'green'
+                                }, 5);
                                 
-                                if (response.status === 'success') {
-                                    frappe.show_alert({
-                                        message: `✅ ${response.message}`,
-                                        indicator: 'green'
-                                    }, 5);
-                                    
-                                    // Sayfayı tamamen yenile (güncel verileri görmek için)
-                                    setTimeout(function() {
-                                        window.location.reload();
-                                    }, 1500);
-                                    
-                                } else {
-                                    frappe.msgprint({
-                                        title: __('Error'),
-                                        message: response.message,
-                                        indicator: 'red'
-                                    });
-                                }
+                                // Sayfayı tamamen yenile (güncel verileri görmek için)
+                                setTimeout(function() {
+                                    window.location.reload();
+                                }, 1500);
+                                
+                            } else {
+                                frappe.msgprint({
+                                    title: __('Error'),
+                                    message: response.message,
+                                    indicator: 'red'
+                                });
                             }
-                        },
-                        error: function(r) {
-                            frappe.msgprint({
-                                title: __('API Error'),
-                                message: __('Could not update customer status.'),
-                                indicator: 'red'
-                            });
                         }
-                    });
-                }, 500);
-            }).catch(function(err) {
-                // Save hatası durumunda
-                frappe.msgprint({
-                    title: __('Save Error'),
-                    message: __('Could not save the form. Please check for validation errors.'),
-                    indicator: 'red'
+                    },
+                    error: function(r) {
+                        frappe.msgprint({
+                            title: __('API Error'),
+                            message: __('Could not update customer status.'),
+                            indicator: 'red'
+                        });
+                    }
                 });
-            });
+            }
+
+            // Formda değişiklik varsa önce kaydet, yoksa direkt approve et
+            if (frm.is_dirty()) {
+                // "Yes" tıklandığında önce formu kaydet
+                frm.save().then(function() {
+                    // Form kaydedildikten sonra reload et ve backend çağrısını yap
+                    frm.reload_doc();
+                    
+                    // Reload tamamlandıktan sonra backend çağrısı yap
+                    setTimeout(function() {
+                        executeApprove();
+                    }, 500);
+                }).catch(function(err) {
+                    // Save hatası durumunda
+                    frappe.msgprint({
+                        title: __('Save Error'),
+                        message: __('Could not save the form. Please check for validation errors.'),
+                        indicator: 'red'
+                    });
+                });
+            } else {
+                // Değişiklik yoksa direkt approve et
+                executeApprove();
+            }
         }
     );
 }
