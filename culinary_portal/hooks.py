@@ -208,6 +208,10 @@ doc_events = {
 		"on_submit": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_saved",
 		"on_cancel": "culinary_portal.custom_hooks.handle_agreement.handle_agreement_cancelled",
 	},
+	"Communication": {
+		"after_insert": "culinary_portal.custom_hooks.process_email_attachments.process_email_attachments",
+		"on_update": "culinary_portal.custom_hooks.process_email_attachments.process_email_attachments",
+	},
 }
 
 # Scheduled Tasks
