@@ -581,17 +581,36 @@ def validate_request() -> Tuple[bool, Optional[HTTPStatus], Optional[str]]:
 		print("\n\n\n DEBUG-2 wc_server", wc_server)
 	except Exception as e:
 		print("\n\n\n DEBUG-3 Exception", e)
+		frappe.log_error(
+			title="Webhook Validation Error - Missing Header",
+			message=f"Failed to get WooCommerce Server: {str(e)}\nWebhook Source URL: {frappe.get_request_header('x-wc-webhook-source', 'N/A')}"
+		)
 		return False, HTTPStatus.BAD_REQUEST, _("Missing Header")
 
 	# Validate secret
-	sig = base64.b64encode(
-		hmac.new(wc_server.secret.encode("utf8"), frappe.request.data, hashlib.sha256).digest()
-	)
-	if (
-		frappe.request.data
-		and not sig == frappe.get_request_header("x-wc-webhook-signature", "").encode()
-	):
-		return False, HTTPStatus.UNAUTHORIZED, _("Unauthorized")
+	request_data = frappe.request.data or b""
+	received_signature = frappe.get_request_header("x-wc-webhook-signature", "")
+	
+	if not received_signature:
+		frappe.log_error(
+			title="Webhook Validation Error - Missing Signature",
+			message=f"Webhook signature header is missing\nWebhook Source: {webhook_source_url}\nWooCommerce Server: {wc_server.name}"
+		)
+		return False, HTTPStatus.UNAUTHORIZED, _("Missing webhook signature")
+	
+	# Calculate expected signature
+	expected_sig = base64.b64encode(
+		hmac.new(wc_server.secret.encode("utf8"), request_data, hashlib.sha256).digest()
+	).decode("utf8")
+	
+	# Compare signatures securely (constant-time comparison)
+	if not hmac.compare_digest(expected_sig, received_signature):
+		frappe.log_error(
+			title="Webhook Validation Error - Invalid Signature",
+			message=f"Webhook signature validation failed\nWebhook Source: {webhook_source_url}\nWooCommerce Server: {wc_server.name}\nExpected Signature: {expected_sig[:20]}...\nReceived Signature: {received_signature[:20]}..."
+		)
+		return False, HTTPStatus.UNAUTHORIZED, _("Invalid webhook signature")
+	
 	print("\n\n\n DEBUG-3 frappe.set_user(wc_server.creation_user)", wc_server.creation_user)
 	frappe.set_user(wc_server.creation_user)
 	return True, None, None
@@ -637,6 +656,10 @@ def user_created(*args, **kwargs):
 	"""
 	WordPress'te user oluşturulduğunda tetiklenen webhook endpoint'i
 	"""
+	valid, status, msg = validate_request()
+	if not valid:
+		return Response(response=msg, status=status)
+	
 	print("\n\n\n ========== USER CREATED WEBHOOK BAŞLADI ==========")
 	
 	# Request data'yı göster
@@ -679,6 +702,10 @@ def user_updated(*args, **kwargs):
 	"""
 	WordPress'te user güncellendiğinde tetiklenen webhook endpoint'i
 	"""
+	valid, status, msg = validate_request()
+	if not valid:
+		return Response(response=msg, status=status)
+	
 	print("\n\n\n ========== USER UPDATED WEBHOOK BAŞLADI ==========")
 	
 	# Request data'yı göster
@@ -750,6 +777,10 @@ def attach_pdf_to_customer(*args, **kwargs):
 		"document_title": "Document Title"
 	}
 	"""
+	valid, status, msg = validate_request()
+	if not valid:
+		return Response(response=msg, status=status)
+	
 	print("\n\n\n ========== ATTACH PDF TO CUSTOMER BAŞLADI ==========")
 	
 	if not frappe.request or not frappe.request.data:
